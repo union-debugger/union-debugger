@@ -1,0 +1,6 @@
+# Files to ignore
+project_topic.pdf
+
+# Directories to ignore
+deps/
+tests/target/
