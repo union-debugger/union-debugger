@@ -1,45 +1,25 @@
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/ptrace.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
-void dbg_tracee(pid_t tracee)
-{
-    while (1) {
-        int status;
-        waitpid(tracee, &status, 0);
-
-        if (WIFSTOPPED(status)) {
-            fprintf(stderr, "Tracee has stopped. Resuming...\n");
-            ptrace(PTRACE_CONT, tracee, NULL, NULL);
-        } else if (WIFEXITED(status)) {
-            fprintf(stderr, "Tracee has finished executing. Terminating...\n");
-            exit(0);
-        }
-    }
-}
-
-void exec_tracee(const char *path, char **const argv)
-{
-    pid_t tracee = fork();
-
-    if (tracee == 0) {
-        ptrace(PTRACE_TRACEME, NULL, NULL, NULL);
-        execv(path, argv + 1);
-    } else {
-        dbg_tracee(tracee);
-    }
-}
+#include "../include/cli.h"
+#include "../include/consts.h"
+#include "../include/types.h"
+#include "../include/utils.h"
 
 int main(int argc, char **argv)
 {
-    if (argc < 2)
-        return fprintf(stderr, "Usage: %s PATH [OPTIONS]\n", argv[0]), 1;
+    config_t* cfg = parse_args(argc, argv);
 
-    exec_tracee(argv[1], argv);
+    printf("\n%s%sUnion's Debugging Software (udb) v0.1.0%s\n", MAGENTA, BOLD, NORMAL);
+    printf("To show the available commands, type `help`.\n\n");
+    char* cmd_buffer = malloc(BUFFER_LEN * sizeof(char));
+    do {
+        printf("%s(udb) >%s ", BLUE, NORMAL);
+        fgets(cmd_buffer, BUFFER_LEN, stdin);
+        cmd_buffer = strstrip(cmd_buffer);
+    } while (handle_command(cmd_buffer, cfg) != 0);
 
+    free(cmd_buffer);
+    free(cfg);
     return 0;
 }
