@@ -12,7 +12,7 @@ make
 ```
 Then run the debugger on your binaries like so:
 ```
-udb BINARY [ARGS]
+./udb [OPTIONS] [FLAGS]
 ```
 
 ## Features
