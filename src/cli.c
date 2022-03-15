@@ -31,19 +31,27 @@ config_t* parse_args(int const argc, char* const* argv)
     do {
         i32 option_idx;
         current = getopt_long(argc, argv, "p:a:vh", long_options, &option_idx);
-
         switch (current) {
             case 'p':
                 config_set_target(cfg, optarg);
                 break;
             case 'a':
+                if (!config_target(cfg)) {
+                    printf("%s%serror:%s %s\n%s\n\n", BOLD, RED, NORMAL,
+                           "the `--args` requires a path to be set", "See the help below");
+                    help();
+                    config_drop(cfg);
+                    exit(EXIT_FAILURE);
+                }
                 config_set_args(cfg, optarg);
                 break;
             case 'h':
                 help();
+                config_drop(cfg);
                 exit(EXIT_SUCCESS);
             case 'v':
                 printf("udb v0.1.0\n");
+                config_drop(cfg);
                 exit(EXIT_SUCCESS);
             default:
                 break;

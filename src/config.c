@@ -22,9 +22,6 @@ config_t *config_new(char* target, char** args, size_t nb_args)
 void config_drop(config_t *self)
 {
     UD_assert(self, "invalid parameter (null pointer)");
-    if (self->target) {
-        free(self->target);
-    }
     if (self->args) {
         for (size_t i = 0; i < self->nb_args + 1; i++) {
             free(self->args[i]);

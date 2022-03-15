@@ -26,6 +26,6 @@ int main(int argc, char** argv)
         free(prompt_buffer);
     }
 
-    free(cfg);
+    config_drop(cfg);
     return 0;
 }
