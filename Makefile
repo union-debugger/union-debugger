@@ -13,7 +13,7 @@ EXE=udb
 build: $(DEPS)/linenoise.o $(DEPS)/main.o $(DEPS)/config.o $(DEPS)/cli.o $(DEPS)/debugger.o $(DEPS)/utils.o
 	$(CC) $(CFLAGS) $(OFLAGS) $? -o $(EXE)
 
-test: $(BINS)/hello
+test: $(BINS)/hello $(BINS)/loop
 
 $(DEPS)/%.o: $(SRC)/%.c
 	@mkdir -p $(DEPS)
