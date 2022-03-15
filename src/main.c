@@ -1,25 +1,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "../ext/linenoise.h"
 #include "../include/cli.h"
 #include "../include/consts.h"
 #include "../include/types.h"
 #include "../include/utils.h"
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     config_t* cfg = parse_args(argc, argv);
 
-    printf("\n%s%sUnion's Debugging Software (udb) v0.1.0%s\n", MAGENTA, BOLD, NORMAL);
+    linenoiseSetCompletionCallback(completions);
+    linenoiseHistoryLoad(UDB_HISTORY);
+    printf("\n%s%sUnion's Debugger (udb) v0.1.0%s\n", MAGENTA, BOLD, NORMAL);
     printf("To show the available commands, type `help`.\n\n");
-    char* cmd_buffer = malloc(BUFFER_LEN * sizeof(char));
-    do {
-        printf("%s(udb) >%s ", BLUE, NORMAL);
-        fgets(cmd_buffer, BUFFER_LEN, stdin);
-        cmd_buffer = strstrip(cmd_buffer);
-    } while (handle_command(cmd_buffer, cfg) != 0);
 
-    free(cmd_buffer);
+    size_t ret = 1;
+    while (ret > 0) {
+        char* prompt_buffer;
+        prompt_buffer = linenoise("\033[34m(udb) >\033[0m ");
+        linenoiseHistoryAdd(prompt_buffer);
+        linenoiseHistorySave(UDB_HISTORY);
+        ret = handle_command(prompt_buffer, cfg);
+        free(prompt_buffer);
+    }
+
     free(cfg);
     return 0;
 }

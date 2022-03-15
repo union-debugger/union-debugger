@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "../ext/linenoise.h"
 #include "../include/cli.h"
 #include "../include/consts.h"
 #include "../include/debugger.h"
@@ -50,6 +51,32 @@ config_t* parse_args(int const argc, char* const* argv)
     } while (current != -1);
 
     return cfg;
+}
+
+void completions(char const* buf, linenoiseCompletions* lc)
+{
+    switch (buf[0]) {
+        case 'r':
+            linenoiseAddCompletion(lc, "run");
+            break;
+        case 't':
+            linenoiseAddCompletion(lc, "target");
+            break;
+        case 'a':
+            linenoiseAddCompletion(lc, "args");
+            break;
+        case 'i':
+            linenoiseAddCompletion(lc, "info");
+            break;
+        case 'h':
+            linenoiseAddCompletion(lc, "help");
+            break;
+        case 'q':
+            linenoiseAddCompletion(lc, "quit");
+            break;
+        default:
+            return;
+    }
 }
 
 ssize_t handle_command(char* cmd, config_t* cfg)

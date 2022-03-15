@@ -1,6 +1,8 @@
 #pragma once
 
 #define BUFFER_LEN 256
+#define UDB_HISTORY ".udb_history.txt" 
+
 #define RED "\033[31m"
 #define GREEN "\033[32m"
 #define YELLOW "\033[33m"
