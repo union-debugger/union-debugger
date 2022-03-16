@@ -65,22 +65,22 @@ void completions(char const* buf, linenoiseCompletions* lc)
 {
     switch (buf[0]) {
         case 'r':
-            linenoiseAddCompletion(lc, "run");
+            linenoiseAddCompletion(lc, "run ");
             break;
         case 't':
-            linenoiseAddCompletion(lc, "target");
+            linenoiseAddCompletion(lc, "target ");
             break;
         case 'a':
-            linenoiseAddCompletion(lc, "args");
+            linenoiseAddCompletion(lc, "args ");
             break;
         case 'i':
-            linenoiseAddCompletion(lc, "info");
+            linenoiseAddCompletion(lc, "info ");
             break;
         case 'h':
-            linenoiseAddCompletion(lc, "help");
+            linenoiseAddCompletion(lc, "help ");
             break;
         case 'q':
-            linenoiseAddCompletion(lc, "quit");
+            linenoiseAddCompletion(lc, "quit ");
             break;
         default:
             return;
