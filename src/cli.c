@@ -110,6 +110,14 @@ ssize_t handle_command(char* cmd, config_t* cfg)
             printf("%s%serror:%s no executable has been defined yet\n", BOLD, RED, NORMAL);
             goto exit;
         }
+        if (!exists(cfg->target)) {
+            printf("%s%serror:%s the executable does not exist\n", BOLD, RED, NORMAL);
+            goto exit;
+        }
+        if (!access(cfg->target, X_OK)) {
+            printf("%s%serror:%s the executable has not the required permissions\n", BOLD, RED, NORMAL);
+            goto exit;
+        }
         i32 exec = exec_inferior(config_target(cfg), config_args(cfg));
         if (exec == 0) {
             flag = 0;
