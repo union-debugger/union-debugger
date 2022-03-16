@@ -8,10 +8,10 @@
 void help()
 {
     fprintf(stderr, "udb v0.1.0 — Union's Debugger\n");
-    fprintf(stderr, "\n%sUSAGE:%s\n    ./udb[OPTIONS] [FLAGS]\n", BOLD, NORMAL);
+    fprintf(stderr, "\n%sUSAGE:%s\n    ./udb [OPTIONS] [FLAGS]\n", BOLD, NORMAL);
     fprintf(stderr, "\n%sOPTIONS:%s\n", BOLD, NORMAL);
-    fprintf(stderr, "    --path,     -p <PATH>\tPath to target program.\n");
-    fprintf(stderr, "    --args,     -a <ARGS>\tArguments of target program. Requires the `--path` option\n");
+    fprintf(stderr, "    --path,     -p <PATH>\tPath to target program. Is required by `--args`.\n");
+    fprintf(stderr, "    --args,     -a <ARGS>\tArguments of target program. Requires the `--path` option.\n");
     fprintf(stderr, "\n%sFLAGS:%s\n", BOLD, NORMAL);
     fprintf(stderr, "    --help,     -h\t\tPrints this help.\n");
     fprintf(stderr, "    --version,  -v\t\tPrints current version.\n");

@@ -3,12 +3,6 @@
 #include "../include/config.h"
 #include "../include/utils.h"
 
-typedef struct config_s {
-    char* target;
-    char** args;
-    size_t nb_args;
-} config_t;
-
 config_t *config_new(char* target, char** args, size_t nb_args)
 {
     config_t* cfg = malloc(sizeof(config_t));
@@ -16,6 +10,7 @@ config_t *config_new(char* target, char** args, size_t nb_args)
     cfg->target = target;
     cfg->args = args;
     cfg->nb_args = nb_args;
+    cfg->inferior_pid = -1;
     return cfg;
 }
 
@@ -23,7 +18,8 @@ void config_drop(config_t *self)
 {
     UD_assert(self, "invalid parameter (null pointer)");
     if (self->args) {
-        for (size_t i = 0; i < self->nb_args + 1; i++) {
+        for (size_t i = 0; i < self->nb_args; i++) {
+            printf("%s ", self->args[i]);
             free(self->args[i]);
         }
     }

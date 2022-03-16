@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/ptrace.h>
 
 #include "../ext/linenoise.h"
 #include "../include/cli.h"
 #include "../include/consts.h"
 #include "../include/types.h"
 #include "../include/utils.h"
+#include "../include/debugger.h"
 
 int main(int argc, char** argv)
 {
@@ -23,6 +25,8 @@ int main(int argc, char** argv)
         linenoiseHistoryAdd(prompt_buffer);
         linenoiseHistorySave(UDB_HISTORY);
         ret = handle_command(prompt_buffer, cfg);
+        if (cfg->inferior_pid) debug_capture_signal(cfg->inferior_pid);
+        debug_capture_signal(cfg->inferior_pid);
         free(prompt_buffer);
     }
 

@@ -2,7 +2,12 @@
 
 #include "types.h"
 
-typedef struct config_s config_t;
+typedef struct config_s {
+    char* target;
+    char** args;
+    size_t nb_args;
+    i32 inferior_pid;
+} config_t;
 
 config_t* config_new(char* target, char** args, size_t nb_args);
 void config_drop(config_t *self);

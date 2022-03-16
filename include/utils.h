@@ -6,6 +6,8 @@
 #include "consts.h"
 #include "types.h"
 
+#include <string.h>
+
 #define UD_assert(expr, msg)                                                       \
     do {                                                                            \
         if (!(expr)) {                                                              \
