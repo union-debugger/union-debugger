@@ -17,12 +17,6 @@ void help()
     fprintf(stderr, "    --version,  -v\t\tPrints current version.\n");
 }
 
-bool exists(char const* path)
-{
-    UD_assert(path, "invalid parameter (null pointer)");
-    return access(path, F_OK) ? true : false;
-}
-
 char* strstrip(char* str)
 {
     UD_assert(str, "invalid parameter (null pointer)");
@@ -42,10 +36,9 @@ char* strstrip(char* str)
     return strip;
 }
 
-char** strsplit(char const* str, char const* delimeter)
+char** strsplit(char** args, char const* str, char const* delimeter)
 {
     UD_assert(str && delimeter, "invalid parameter (null pointer)");
-    char** tokens = NULL;
     char* cpy = malloc(strlen(str) + 1);
     UD_assert(cpy, "string allocation failed");
     cpy = strcpy(cpy, str); 
@@ -53,22 +46,20 @@ char** strsplit(char const* str, char const* delimeter)
 
     char* tmp = strtok(cpy, delimeter);
     UD_assert(tmp, "delimeter not found in string");
-    size_t nb_delims = 0;
-    tokens = realloc(tokens, (++nb_delims) * sizeof(char*));
-    UD_assert(tokens, "token's reallocation failed");
-    tokens[0] = "easter egg bro";
+
+    size_t nb_delims = 1;
     while (tmp) {
-        tokens = realloc(tokens, (++nb_delims) * sizeof(char*));
-        UD_assert(tokens, "token's reallocation failed");
-        tokens[nb_delims - 1] = tmp;
+        args = realloc(args, (++nb_delims) * sizeof(char*));
+        UD_assert(args, "token's reallocation failed");
+        args[nb_delims - 1] = tmp;
         tmp = strtok(NULL, delimeter);
     }
 
-    tokens = realloc(tokens, (nb_delims + 1) * sizeof(char*));
-    UD_assert(tokens, "token's reallocation failed");
-    tokens[nb_delims] = NULL;
+    args = realloc(args, (nb_delims + 1) * sizeof(char*));
+    UD_assert(args, "token's reallocation failed");
+    args[nb_delims] = NULL;
 
-    return tokens;
+    return args;
 }
 
 size_t substr_cnt(char const* str, char const* substr)

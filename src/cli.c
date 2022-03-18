@@ -23,26 +23,16 @@ config_t* parse_args(int const argc, char* const* argv) {
         { 0, 0, 0, 0 },
     };
 
-    config_t* cfg = config_new(NULL, NULL, 0);
+    config_t* cfg = config_new(NULL);
     UD_assert(cfg, "failed to create config");
 
     i32 current;
     do {
         i32 option_idx;
-        current = getopt_long(argc, argv, "p:a:vh", long_options, &option_idx);
+        current = getopt_long(argc, argv, "p:vh", long_options, &option_idx);
         switch (current) {
         case 'p':
-            config_set_target(cfg, optarg);
-            break;
-        case 'a':
-            if (!config_target(cfg)) {
-                printf("%s%serror:%s %s\n%s\n\n", BOLD, RED, NORMAL,
-                    "the `--args` requires a path to be set", "See the help below");
-                help();
-                config_drop(cfg);
-                exit(EXIT_FAILURE);
-            }
-            config_set_args(cfg, optarg);
+            config_load(cfg, optarg);
             break;
         case 'h':
             help();
@@ -65,11 +55,11 @@ void completions(char const* buf, linenoiseCompletions* lc) {
     case 'r':
         linenoiseAddCompletion(lc, "run ");
         break;
-    case 't':
-        linenoiseAddCompletion(lc, "target ");
+    case 'c':
+        linenoiseAddCompletion(lc, "cont ");
         break;
-    case 'a':
-        linenoiseAddCompletion(lc, "args ");
+    case 'l':
+        linenoiseAddCompletion(lc, "load ");
         break;
     case 'i':
         linenoiseAddCompletion(lc, "info ");
@@ -85,113 +75,92 @@ void completions(char const* buf, linenoiseCompletions* lc) {
     }
 }
 
-ssize_t handle_command(char* cmd, config_t* cfg) {
-    size_t flag = 0;
-
-    char* command = malloc(strlen(cmd) + 1);
-    command = strcpy(command, cmd);
-    char* arguments = NULL;
-
-    // Case where command has arguments
-    if (strchr(command, ' ')) {
-        char* tmp = malloc(strlen(cmd) + 1);
-        tmp = strcpy(tmp, cmd);
-        UD_assert(tmp, "string copy failed");
-        command = strtok(cmd, " ");
-        arguments = strtok(tmp + strlen(command) + 1, "\0");
+bool handle_command(char* prompt, config_t* cfg)
+{
+    char* cmd = strtok(prompt, " "); 
+    if (!cmd) {
+        return true;
     }
 
-    if (!strcmp(command, "r") || !strcmp(command, "run")) {
-        flag = 1;
-        if (!config_target(cfg)) {
+    if (!strcmp(cmd, "r") || !strcmp(cmd, "run")) {
+        if (!cfg->target) {
             printf("%s%serror:%s no executable has been defined yet\n", BOLD, RED, NORMAL);
-            goto exit;
+            return true;
         }
-        if (!exists(cfg->target)) {
-            printf("%s%serror:%s the executable does not exist\n", BOLD, RED, NORMAL);
-            goto exit;
+        if (access(cfg->target, F_OK) != 0 || access(cfg->target, X_OK != 0)) {
+            printf("%s%serror:%s executable does not exist or has not the required permissions\n",
+                   BOLD, RED, NORMAL);
+            return true;
         }
-        if (!access(cfg->target, X_OK)) {
-            printf("%s%serror:%s the executable has not the required permissions\n", BOLD, RED, NORMAL);
-            goto exit;
+
+        char* argv[MAX_ARGS + 1];
+        for (size_t i = 0; i < MAX_ARGS; i++) {
+            argv[i] = strtok(NULL, " ");
+            if (argv[i] == NULL) {
+                break;
+            }
         }
-        // i32 exec = exec_inferior(config_target(cfg), config_args(cfg));
-        i32 exec_status = debug_run(cfg);
-        if (!exec_status) flag = 1;
-    }
-    else if (!strcmp(command, "t") || !strcmp(command, "target")) {
-        flag = 1;
-        if (!arguments) {
+        argv[MAX_ARGS] = NULL;
+
+        debug_run(cfg, (char* const*)argv);
+        return true;
+    } else if (!strcmp(cmd, "c") || !strcmp(cmd, "cont")) {
+        debug_capture_signal(cfg);
+        return true;
+    } else if (!strcmp(cmd, "l") || !strcmp(cmd, "load")) {
+        char* target = strtok(NULL, " ");
+        if (!target) {
             printf("%s%serror:%s command `target` takes at least one argument\n", BOLD, RED, NORMAL);
-            goto exit;
+            return true;
         }
-        if (substr_cnt(arguments, " ") > 1) {
+        if (substr_cnt(target, " ") > 1) {
             printf("%s%swarning:%s command `target` only takes one argument\n", BOLD, YELLOW, NORMAL);
+            return true;
         }
-        char* target = strtok(arguments, " ");
-        config_set_target(cfg, target);
-    }
-    else if (!strcmp(command, "a") || !strcmp(command, "args")) {
-        flag = 1;
-        config_set_args(cfg, arguments);
-    }
-    else if (!strcmp(command, "i") || !strcmp(command, "info")) {
-        flag = 1;
+        config_load(cfg, target);
+        return true;
+    } else if (!strcmp(cmd, "i") || !strcmp(cmd, "info")) {
         config_print(cfg);
-    }
-    else if (!strcmp(command, "h") || !strcmp(command, "help")) {
-        flag = 1;
+        return true;
+    } else if (!strcmp(cmd, "h") || !strcmp(cmd, "help")) {
         printf("%sAvailable commands:%s\n", BOLD, NORMAL);
         printf("\n  Program configuration:\n");
-        printf("    %srun,    r%s\t -- Launch the executable in the debugger.\n", BOLD, NORMAL);
-        printf("    %starget, t%s\t -- Add the argument as the target executable.\n", BOLD, NORMAL);
-        printf("    %sargs,   a%s\t -- Add the arguments as arguments of the executable.\n", BOLD, NORMAL);
-        printf("    %sinfo,   i%s\t -- Print information about the current debugger configuration.\n", BOLD, NORMAL);
-        printf("    %shelp,   h%s\t -- Print the available debugger commands.\n", BOLD, NORMAL);
-        printf("    %squit,   q%s\t -- Quit the debugger.\n", BOLD, NORMAL);
+        printf("    %srun,       r%s\t -- Launch the executable in the debugger.\n", BOLD, NORMAL);
+        printf("    %starget,    t%s\t -- Add the argument as the target executable.\n", BOLD, NORMAL);
+        printf("    %sinfo,      i%s\t -- Print information about the current debugger configuration.\n", BOLD, NORMAL);
+        printf("    %shelp,      h%s\t -- Print the available debugger cmds.\n", BOLD, NORMAL);
+        printf("    %squit,      q%s\t -- Quit the debugger.\n", BOLD, NORMAL);
         printf("\n  Debugging options:\n");
-        printf("    %smemory,   mem%s\t -- Print memory usage status.\n", BOLD, NORMAL);
-        printf("    %sregisters,   regs%s\t -- Print registers status.\n", BOLD, NORMAL);
-        printf("    %skill,   k%s\t -- Sends a signal to child process. Sends a SIGKILL signal by default.\n", BOLD, NORMAL);
-    }
-    else if (!strcmp(command, "q") || !strcmp(command, "quit")) {
-        flag = 0;
+        printf("    %smemory,    m%s\t -- Print memory usage status.\n", BOLD, NORMAL);
+        printf("    %sregisters, R%s\t -- Print registers status.\n", BOLD, NORMAL);
+        printf("    %skill,      k%s\t -- Sends a signal to child process. Sends a SIGKILL signal by default.\n", BOLD, NORMAL);
+        return true;
+    } else if (!strcmp(cmd, "q") || !strcmp(cmd, "quit")) {
         printf("\nBye :)\n");
-    }
-    else if (!strcmp(command, "regs") || !strcmp(command, "registers")) {
-        flag = 1;
+        return false;
+    } else if (!strcmp(cmd, "R") || !strcmp(cmd, "registers")) {
         debug_print_regs(cfg);
-    }
-    else if (!strcmp(command, "mem") || !strcmp(command, "memory")) {
-        flag = 1;
+        return true;
+    } else if (!strcmp(cmd, "m") || !strcmp(cmd, "memory")) {
         debug_print_mem();
-    }
-    else if (!strcmp(command, "k") || !strcmp(command, "kill")) {
-        flag = 1;
+        return true;
+    } else if (!strcmp(cmd, "k") || !strcmp(cmd, "kill")) {
         printf("debug : %d\n", cfg->inferior_pid);
-        i32 res = debug_kill(cfg, arguments);
+        i32 res = debug_kill(cfg, "");
         printf("kill res %d\n", res);
-    }
-    else if (!strcmp(command, "pids")) {
-        flag = 1;
+        return true;
+    } else if (!strcmp(cmd, "pids")) {
         debug_print_pids();
-    }
-    else if (!strcmp(command, "childpid")) {
-        flag = 1;
+        return true;
+    } else if (!strcmp(cmd, "childpid")) {
         debug_print_child_pids(cfg);
-    }
-    else if (!strcmp(command, "path")) {
-        flag = 1;
+        return true;
+    } else if (!strcmp(cmd, "path")) {
         debug_print_real_path();
+        return true;
+    } else {
+        printf("%s%serror:%s `%s` is an unknow cmd\n", BOLD, RED, NORMAL, cmd);
+        printf("Type `h` or `help` to display available cmds\n");
+        return true;
     }
-    else {
-        flag = 1;
-        printf("%s%serror:%s `%s` is an unknow command\n", BOLD, RED, NORMAL, command);
-        printf("Type `h` or `help` to display available commands\n");
-    }
-
-exit:
-    // free(command);
-    // free(arguments);
-    return flag;
 }

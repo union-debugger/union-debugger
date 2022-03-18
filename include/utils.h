@@ -32,7 +32,6 @@
     } while (0)
 
 void help();
-bool exists(const char *path);
 char* strstrip(char* str);
-char** strsplit(char const* str, char const* delimeter);
+char** strsplit(char** args, char const* str, char const* delimeter);
 size_t substr_cnt(char const* str, char const* substr);
