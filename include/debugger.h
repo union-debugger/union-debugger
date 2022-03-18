@@ -2,7 +2,6 @@
 
 #include <sys/user.h>
 
-
 #include "types.h"
 #include "config.h"
 
@@ -10,10 +9,10 @@ typedef struct {
     int real_mem_curr, real_mem_peak, virt_mem_curr, virt_mem_peak;
 } p_mem;
 
-i32 exec_inferior(char const* path, char *const* args);
-i32 debug_run(config_t* cfg);
+i32 exec_inferior(char const* path, char* const* args);
+i32 debug_run(config_t *cfg, char* const* argv);
 
-void debug_capture_signal(pid_t inferior_pid);
+i32 debug_capture_signal(config_t* cfg);
 
 void debug_get_regs(i8 child, struct user_regs_struct* regs);
 void debug_print_regs(config_t* cfg);

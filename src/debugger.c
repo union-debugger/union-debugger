@@ -1,66 +1,99 @@
+#include <errno.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/ptrace.h>
-#include <linux/ptrace.h>
-#include <sys/wait.h>
-#include <unistd.h>
 #include <signal.h>
-
+#include <unistd.h>
+#include <sys/personality.h>
+#include <sys/ptrace.h>
 #include <sys/user.h>
+#include <sys/wait.h>
+#include <linux/ptrace.h>
 
 #include "../include/debugger.h"
 #include "../include/utils.h"
 #include "../include/types.h"
 #include "../include/config.h"
 
-i32 debug_run(config_t *cfg){
+i32 debug_run(config_t *cfg, char* const* argv)
+{
     i32 status = 0;
+    char* path = cfg->target;
+    char* args[MAX_ARGS + 2];
+    args[0] = path;
+    memcpy(&args[1], argv, MAX_ARGS * sizeof(char*));
+    args[MAX_ARGS + 1] = NULL;
 
     pid_t inferior_pid = fork();
-    cfg->inferior_pid = inferior_pid;
+    if (inferior_pid == 0) {
+        ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+        personality(ADDR_NO_RANDOMIZE);
+        execvp(cfg->target, args);
+        printf("Failed to execute inferior: %s\n", strerror(errno));
+        abort();
+    } else if (inferior_pid > 0) {
+        cfg->inferior_pid = inferior_pid;
+        config_print(cfg);
+        debug_capture_signal(cfg);
+        if (ptrace(PTRACE_SETOPTIONS, cfg->inferior_pid, NULL, PTRACE_O_EXITKILL) < 0) {
+            return -1;
+        }
+    } else {
+        UD_assert(false, "fork failed");
+    }
 
-    if (inferior_pid == 0){
-        ptrace(PTRACE_TRACEME, NULL, NULL, NULL);
-        debug_print_pids();
-        status = execvp(cfg->target, cfg->args);
-        printf("Done exec !\n");
-        return status;
-    }
-    else {
-        printf("Child %d started with %s %s\n", inferior_pid, cfg->target, (cfg->args == NULL) ? "" : (char*)cfg->args);
-        debug_print_pids();
-        UD_assert(inferior_pid, "Fork failed");
-    }
     return status;
 }
 
-void debug_capture_signal(pid_t inferior_pid){
-    i32 wait_status;
-    i32 options = 0;
-    waitpid(inferior_pid, &wait_status, options);
-
-    if (WIFSTOPPED(wait_status)) {
-        printf("Inferior has stopped. Resuming...\n");
-        ptrace(PTRACE_CONT, inferior_pid, NULL, NULL);
-    } else if (WIFEXITED(wait_status)) {
-        printf("Inferior has finished executing. Terminating...\n");
-        return;
+i32 debug_capture_signal(config_t* cfg)
+{
+    i32 wstatus;
+restart:
+    if (waitpid(cfg->inferior_pid, &wstatus, 0) < 0) {
+        return -1;
     }
+
+    if (WIFEXITED(wstatus)) {
+        printf("Child process #%d terminated normally (code %d)\n", cfg->inferior_pid, WEXITSTATUS(wstatus));
+    } else if (WIFSIGNALED(wstatus)) {
+        printf("Child process #%d terminated by signal %s (%d)\n", cfg->inferior_pid, strsignal(WTERMSIG(wstatus)), WTERMSIG(wstatus));
+    } else if (WIFSTOPPED(wstatus)) {
+        i32 stopsig = WSTOPSIG(wstatus);
+        if (stopsig == SIGTRAP) {
+            printf("Child process #%d has stopped\n", cfg->inferior_pid);
+            // Breakpoint and execvp
+            struct user_regs_struct regs;
+            if (ptrace(PTRACE_GETREGS, cfg->inferior_pid, NULL, &regs) < 0) {
+                return -1;
+            }
+        } else {
+            siginfo_t siginfo;
+            if (stopsig == SIGSTOP || stopsig == SIGTSTP || stopsig == SIGTTIN || stopsig == SIGTTOU) {
+                if (ptrace(PTRACE_GETSIGINFO, cfg->inferior_pid, NULL, &siginfo) < 0 && errno == EINVAL) {
+                    goto restart;
+                }
+            }
+            ptrace(PTRACE_CONT, cfg->inferior_pid, NULL, stopsig);
+            goto restart;
+        }
+    } else {
+        return -1;
+    }
+
+    return wstatus;
 }
 
-void debug_print_pids(){
+void debug_print_pids() {
     pid_t pid = getpid();
     pid_t ppid = getppid();
-    printf("pid : \t%d\n", pid);
-    printf("ppid : \t%d\n",ppid);
+    printf("pid: \t%d\n", pid);
+    printf("ppid: \t%d\n", ppid);
 }
 
 void debug_print_child_pids(config_t* cfg) {
-    printf("Child pid : \t%d\n", cfg->inferior_pid);
-    printf("Child ppid : \t%d\n", getpid());
+    printf("Child pid: \t%d\n", cfg->inferior_pid);
+    printf("Child ppid: \t%d\n", getpid());
 }
-
 
 void debug_get_regs(i8 child, struct user_regs_struct *regs) {
     i8 res = 0;
@@ -68,7 +101,7 @@ void debug_get_regs(i8 child, struct user_regs_struct *regs) {
     UD_assert((res != 0), "Cannot PTRACE_GETREGS");
 }
 
-void debug_print_regs(config_t *cfg){
+void debug_print_regs(config_t *cfg) {
     // REGISTERS
     struct user_regs_struct regs;
     debug_get_regs(cfg->inferior_pid, &regs);
@@ -136,9 +169,8 @@ void debug_print_mem(){
     printf("peakVirtMem : %d\n", mem.virt_mem_peak);
 }
 
-
 // i32 needed
-void debug_get_real_path(char real_path[], i32 path_size){
+void debug_get_real_path(char real_path[], i32 path_size) {
     readlink("/proc/self/exe", real_path, path_size);
 }
 
@@ -149,21 +181,18 @@ void debug_print_real_path(){
     printf("Real Path : %s\n", real_path);
 }
 
-
-
 i8 debug_kill(config_t* cfg, char const* arguments) {
-
-    char **args = strsplit(arguments, " ");
+    // char **args = strsplit(cfg->args, arguments, " ");
 
     // int nb_args = substr_cnt(arguments, " ");
     // printf("%d ARGS !\n", nb_args);
     // for (int i = 0; i < nb_args; i++)
     //     printf("%d : %s\n", i, args[i]);
 
-    UD_assert(cfg && args, "invalid parameter (null pointer)");
+    // UD_assert(cfg && args, "invalid parameter (null pointer)");
     i8 signal = 0;
 
-    signal = atoi(args[0]);
+    // signal = atoi(args[0]);
     printf("KILL %d\n", signal);
 
     i8 res;
