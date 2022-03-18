@@ -70,6 +70,18 @@ void completions(char const* buf, linenoiseCompletions* lc) {
     case 'q':
         linenoiseAddCompletion(lc, "quit ");
         break;
+    case 'mm':
+        linenoiseAddCompletion(lc, "mmaps ");
+        break;
+    case 'm':
+        linenoiseAddCompletion(lc, "memory ");
+        break;
+    case 'R':
+        linenoiseAddCompletion(lc, "registers ");
+        break;
+    case 'k':
+        linenoiseAddCompletion(lc, "kill ");
+        break;
     default:
         return;
     }
@@ -132,6 +144,7 @@ bool handle_command(char* prompt, config_t* cfg)
         printf("    %squit,      q%s\t -- Quit the debugger.\n", BOLD, NORMAL);
         printf("\n  Debugging options:\n");
         printf("    %smemory,    m%s\t -- Print memory usage status.\n", BOLD, NORMAL);
+        printf("    %smmaps,    mm%s\t -- Print memory maps.\n", BOLD, NORMAL);
         printf("    %sregisters, R%s\t -- Print registers status.\n", BOLD, NORMAL);
         printf("    %skill,      k%s\t -- Sends a signal to child process. Sends a SIGKILL signal by default.\n", BOLD, NORMAL);
         return true;
@@ -143,6 +156,9 @@ bool handle_command(char* prompt, config_t* cfg)
         return true;
     } else if (!strcmp(cmd, "m") || !strcmp(cmd, "memory")) {
         debug_print_mem();
+        return true;
+    } else if (!strcmp(cmd, "mm") || !strcmp(cmd, "mmaps")) {
+        debug_print_mem_maps(cfg->inferior_pid);
         return true;
     } else if (!strcmp(cmd, "k") || !strcmp(cmd, "kill")) {
         printf("debug : %d\n", cfg->inferior_pid);
