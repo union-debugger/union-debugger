@@ -25,11 +25,10 @@ int main(int argc, char** argv)
         linenoiseHistoryAdd(prompt_buffer);
         linenoiseHistorySave(UDB_HISTORY);
         ret = handle_command(prompt_buffer, cfg);
-        if (cfg->inferior_pid) debug_capture_signal(cfg->inferior_pid);
-        debug_capture_signal(cfg->inferior_pid);
+        // if (cfg->inferior_pid) debug_capture_signal(cfg->inferior_pid);
+        // debug_capture_signal(cfg->inferior_pid);
         free(prompt_buffer);
     }
 
-    config_drop(cfg);
     return 0;
 }

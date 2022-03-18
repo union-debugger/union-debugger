@@ -4,7 +4,7 @@ OFLAGS=-march=native -mtune=native -O2 -Os
 
 SRC=src
 EXT=ext
-TEST=test_prgms
+TEST=tests
 TARGET=target
 BINS=target/$(TEST)
 DEPS=target/deps
@@ -13,7 +13,7 @@ EXE=udb
 build: $(DEPS)/linenoise.o $(DEPS)/main.o $(DEPS)/config.o $(DEPS)/cli.o $(DEPS)/debugger.o $(DEPS)/utils.o
 	$(CC) $(CFLAGS) $(OFLAGS) $? -o $(EXE)
 
-test: $(BINS)/hello $(BINS)/loop
+test: $(BINS)/hello $(BINS)/loop $(BINS)/mini_segfault
 
 $(DEPS)/%.o: $(SRC)/%.c
 	@mkdir -p $(DEPS)

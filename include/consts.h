@@ -1,6 +1,7 @@
 #pragma once
 
 #define BUFFER_LEN 256
+#define MAX_ARGS 128
 #define UDB_HISTORY ".udb_history.txt" 
 
 #define RED "\033[31m"
