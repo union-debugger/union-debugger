@@ -3,10 +3,11 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "../include/breakpoint.h"
 #include "../include/config.h"
 #include "../include/utils.h"
 
-config_t *config_new(char* target)
+config_t* config_new(char* target)
 {
     config_t* cfg = malloc(sizeof(config_t));
     UD_assert(cfg, "config allocation failed");
@@ -14,18 +15,22 @@ config_t *config_new(char* target)
     cfg->pid = getpid();
     cfg->inferior_pid = -1;
     cfg->inferior_start = 0;
+    cfg->breakpoints = vec_new(sizeof(breakpoint_t));
+    cfg->state = STATE_UNINIT;
     return cfg;
 }
 
-void config_clear(config_t *self)
+void config_clear(config_t* self)
 {
     UD_assert(self, "invalid parameter (null pointer)");
     free(self->target);
     self->inferior_pid = -1;
     self->inferior_start = 0;
+    vec_drop(self->breakpoints);
+    self->state = STATE_UNINIT;
 }
 
-void config_drop(config_t *self)
+void config_drop(config_t* self)
 {
     UD_assert(self, "invalid parameter (null pointer)");
     config_clear(self);
@@ -60,12 +65,13 @@ void config_load(config_t* self, char const* target)
               "ELF is invalid");
 
     self->inferior_start = elf_hdr->e_entry;
+    self->state = STATE_INIT;
     config_print(self);
 }
 
 void config_print(config_t const* self)
 {
     UD_assert(self, "invalid parameter (null pointer)");
-    printf("Current executable is set to `%s`, PID #%d (start address: %zu)\n",
+    printf("Current executable is set to `%s`, PID #%d (start address: 0x%zx)\n",
            self->target, self->inferior_pid, self->inferior_start);
 }
