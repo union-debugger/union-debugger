@@ -9,10 +9,9 @@ typedef struct {
     int real_mem_curr, real_mem_peak, virt_mem_curr, virt_mem_peak;
 } p_mem;
 
-i32 exec_inferior(char const* path, char* const* args);
-i32 debug_run(config_t *cfg, char* const* argv);
-
-i32 debug_capture_signal(config_t* cfg);
+i32 debugger_run(config_t *cfg, char* const* argv);
+i32 debugger_wait_signal(config_t* cfg);
+i32 debug_cont(config_t* cfg);
 
 void debug_get_regs(i8 child, struct user_regs_struct* regs);
 void debug_print_regs(config_t* cfg);
