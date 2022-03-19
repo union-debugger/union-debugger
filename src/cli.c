@@ -1,6 +1,5 @@
 #include <errno.h>
-#include <getopt.h>
-#include <inttypes.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,87 +12,173 @@
 #include "../include/debugger.h"
 #include "../include/utils.h"
 
-#define no_argument 0
-#define required_argument 1 
-#define optional_argument 2
-
-config_t* parse_args(int const argc, char* const* argv) {
-    struct option const long_options [] = {
-        { "path",    required_argument, 0, 'p' },
-        { "args",    required_argument, 0, 'a' },
-        { "version", no_argument,       0, 'v' },
-        { "help",    no_argument,       0, 'h' },
-        { 0, 0, 0, 0 },
-    };
-
-    config_t* cfg = config_new(NULL);
-    UDB_assert(cfg, "failed to create config");
-
-    i32 current;
-    do {
-        i32 option_idx;
-        current = getopt_long(argc, argv, "p:vh", long_options, &option_idx);
-        switch (current) {
-        case 'p':
-            config_load(cfg, optarg);
-            break;
-        case 'h':
-            help();
-            config_drop(cfg);
-            exit(EXIT_SUCCESS);
-        case 'v':
-            printf("udb v0.1.0\n");
-            config_drop(cfg);
-            exit(EXIT_SUCCESS);
-        default:
-            break;
-        }
-    } while (current != -1);
-
-    return cfg;
-}
-
-void completions(char const* buf, linenoiseCompletions* lc) {
+void completions(char const* buf, linenoiseCompletions* lc)
+{
     switch (buf[0]) {
-    case 'r':
-        linenoiseAddCompletion(lc, "run ");
+    case 'b':
+        linenoiseAddCompletion(lc, "break ");
         break;
     case 'c':
         linenoiseAddCompletion(lc, "cont ");
         break;
-    case 's':
-        linenoiseAddCompletion(lc, "step ");
+    case 'e':
+        linenoiseAddCompletion(lc, "enable ");
         break;
-    case 'b':
-        linenoiseAddCompletion(lc, "break ");
-        break;
-    case 'l':
-        linenoiseAddCompletion(lc, "load ");
-        break;
-    case 'i':
-        linenoiseAddCompletion(lc, "info ");
+    case 'd':
+        linenoiseAddCompletion(lc, "disable ");
         break;
     case 'h':
         linenoiseAddCompletion(lc, "help ");
         break;
-    case 'q':
-        linenoiseAddCompletion(lc, "quit ");
-        break;
-    case 'mm':
-        linenoiseAddCompletion(lc, "mmaps ");
-        break;
-    case 'm':
-        linenoiseAddCompletion(lc, "memory ");
-        break;
-    case 'R':
-        linenoiseAddCompletion(lc, "registers ");
+    case 'i':
+        linenoiseAddCompletion(lc, "info ");
         break;
     case 'k':
         linenoiseAddCompletion(lc, "kill ");
         break;
+    case 'l':
+        linenoiseAddCompletion(lc, "load ");
+        linenoiseAddCompletion(lc, "list ");
+        break;
+    case 'm':
+        linenoiseAddCompletion(lc, "mmaps ");
+        linenoiseAddCompletion(lc, "memory ");
+        break;
+    case 'q':
+        linenoiseAddCompletion(lc, "quit ");
+        break;
+    case 'r':
+        linenoiseAddCompletion(lc, "run ");
+        linenoiseAddCompletion(lc, "registers ");
+        break;
+    case 's':
+        linenoiseAddCompletion(lc, "step ");
+        break;
     default:
         return;
     }
+}
+
+void command_break(config_t* cfg, char* value)
+{
+    if (cfg->state == STATE_UNINIT) {
+        printf("%s%serror:%s debugger has not been initialized yet\n", BOLD, RED, NORMAL);
+        return;
+    }
+    size_t addr = parse_value(value);
+    if (addr == SIZE_MAX) {
+        printf("%s%serror:%s failed to parse value\n", BOLD, RED, NORMAL);
+        return;
+    }
+
+    i8 ret = breakpoint_new(cfg, addr);
+    if (ret < 0) {
+        printf("%s%serror:%s failed to create new breakpoint\n", BOLD, RED, NORMAL);
+    }
+}
+
+void command_enable(config_t* cfg, char* value)
+{
+    if (cfg->state == STATE_UNINIT) {
+        printf("%s%serror:%s debugger has not been initialized yet\n", BOLD, RED, NORMAL);
+        return;
+    }
+    size_t id = parse_value(value);
+    if (id == SIZE_MAX) {
+        printf("%s%serror:%s failed to parse value\n", BOLD, RED, NORMAL);
+        return;
+    }
+
+    i8 ret = breakpoint_enable_id(cfg, id - 1);
+    if (ret < 0) {
+        printf("%s%serror:%s failed to enable breakpoint #%zu\n", BOLD, RED, NORMAL, id);
+    }
+    printf("Enabled breakpoint #%zu\n", id);
+}
+
+void command_disable(config_t* cfg, char* value)
+{
+    if (cfg->state == STATE_UNINIT) {
+        printf("%s%serror:%s debugger has not been initialized yet\n", BOLD, RED, NORMAL);
+        return;
+    }
+    size_t id = parse_value(value);
+    if (id == SIZE_MAX) {
+        printf("%s%serror:%s failed to parse value\n", BOLD, RED, NORMAL);
+        return;
+    }
+
+    i8 ret = breakpoint_disable_id(cfg, id - 1);
+    if (ret < 0) {
+        printf("%s%serror:%s failed to disable breakpoint #%zu\n", BOLD, RED, NORMAL, id);
+    }
+    printf("Disabled breakpoint #%zu\n", id);
+}
+
+void command_help()
+{
+    printf("%sAvailable commands:%s\n", BOLD, NORMAL);
+    printf("    %sload,      l <path>%s -- Load debugger with the given program's path.\n", BOLD, NORMAL);
+    printf("    %sinfo,      i       %s -- Print current debugger configuration.\n", BOLD, NORMAL);
+    printf("    %srun,       r [args]%s -- Launch the program in the debugger (with optional arguments).\n", BOLD, NORMAL);
+    printf("    %sbreak,     b <addr>%s -- Set a breakpoint at the given address.\n", BOLD, NORMAL);
+    printf("    %senable,    e [id]  %s -- Enable the breakpoint with the given ID (enables all breakpoints if no ID is specified.\n", BOLD, NORMAL);
+    printf("    %sdisable,   d [id]  %s -- Disable the breakpoint with the given ID (disables all breakpoints if no ID is specified.\n", BOLD, NORMAL);
+    printf("    %slist,      L       %s -- List breakpoints.\n", BOLD, NORMAL);
+    printf("    %shelp,      h       %s -- Print the available debugger commands.\n", BOLD, NORMAL);
+    printf("    %squit,      q       %s -- Quit the debugger.\n\n", BOLD, NORMAL);
+    printf("    %smmaps,     m%s        -- Print memory maps.\n", BOLD, NORMAL);
+    printf("    %smemory,    M%s        -- Print memory usage status.\n", BOLD, NORMAL);
+    printf("    %sregisters, R%s        -- Print registers status.\n", BOLD, NORMAL);
+    printf("    %skill,      k [sig] %s -- Send signal to debugged program (SIGKILL if no signal is specified).\n", BOLD, NORMAL);
+}
+
+void command_kill(config_t* cfg, char const* signal)
+{
+    if (!signal) {
+        debugger_kill(cfg, SIGKILL);
+    }
+    // Handle what signals can we send to the child
+    i32 sig = SIGKILL;
+    debugger_kill(cfg, sig);
+}
+
+bool command_quit(config_t* cfg)
+{
+    if (cfg->state == STATE_RUNNING) {
+        printf("One process is currently being debugged. Are you sure? [y/n] ");
+        char ans[BUFFER_LEN];
+        scanf("%s", ans);
+        if (ans[0] == 'y' || ans[0] == 'Y') {
+            i32 ret = debugger_kill(cfg, SIGKILL);
+            UDB_assert(ret <= 0, "failed to kill child process");
+        } else if (ans[0] == 'n' || ans[0] == 'N') {
+            printf("Continuing debugging session\n");
+            return true;
+        } else {
+            printf("\n%s%serror:%s `%s` is not a valid answer\n", BOLD, RED, NORMAL, ans);
+            return true;
+        }
+    }
+    config_drop(*cfg);
+    printf("\nBye :)\n");
+    return false;
+}
+
+void command_run(config_t* cfg, char** args)
+{
+    if (!cfg->path) {
+        printf("%s%serror:%s no executable has been defined yet\n", BOLD, RED, NORMAL);
+        return;
+    }
+    if (access(cfg->path, F_OK) != 0 || access(cfg->path, X_OK != 0)) {
+        printf("%s%serror:%s executable does not exist or has not the required permissions\n",
+               BOLD, RED, NORMAL);
+        return;
+    }
+
+    cfg->state = STATE_RUNNING;
+    debugger_run(cfg, args);
 }
 
 bool handle_command(char* prompt, config_t* cfg)
@@ -103,17 +188,54 @@ bool handle_command(char* prompt, config_t* cfg)
         return true;
     }
 
-    if (!strcmp(cmd, "r") || !strcmp(cmd, "run")) {
-        if (!cfg->target) {
-            printf("%s%serror:%s no executable has been defined yet\n", BOLD, RED, NORMAL);
+    if (!strcmp(cmd, "b") || !strcmp(cmd, "break")) {
+        char* value = strtok(NULL, " ");
+        if (!value) {
+            printf("%s%serror:%s command `break` takes at least one argument\n", BOLD, RED, NORMAL);
             return true;
         }
-        if (access(cfg->target, F_OK) != 0 || access(cfg->target, X_OK != 0)) {
-            printf("%s%serror:%s executable does not exist or has not the required permissions\n",
-                   BOLD, RED, NORMAL);
+        command_break(cfg, value);
+    } else if (!strcmp(cmd, "c") || !strcmp(cmd, "cont")) {
+        debugger_cont(cfg);
+    } else if (!strcmp(cmd, "e") || !strcmp(cmd, "enable")) {
+        char* value = strtok(NULL, " ");
+        if (!value) {
+            printf("%s%serror:%s command `enable` takes at least one argument\n", BOLD, RED, NORMAL);
             return true;
         }
-
+        command_enable(cfg, value);
+    } else if (!strcmp(cmd, "d") || !strcmp(cmd, "disable")) {
+        char* value = strtok(NULL, " ");
+        if (!value) {
+            printf("%s%serror:%s command `enable` takes at least one argument\n", BOLD, RED, NORMAL);
+            return true;
+        }
+        command_disable(cfg, value);
+    } else if (!strcmp(cmd, "h") || !strcmp(cmd, "help")) {
+        command_help();
+    } else if (!strcmp(cmd, "i") || !strcmp(cmd, "info")) {
+        config_print(cfg);
+    } else if (!strcmp(cmd, "k") || !strcmp(cmd, "kill")) {
+        char* signal = strtok(NULL, " ");
+        command_kill(cfg, signal);
+    } else if (!strcmp(cmd, "l") || !strcmp(cmd, "load")) {
+        char* target = strtok(NULL, " ");
+        if (!target) {
+            printf("%s%serror:%s command `target` takes at least one argument\n", BOLD, RED, NORMAL);
+        } else if (substr_cnt(target, " ") > 1) {
+            printf("%s%swarning:%s command `target` only takes one argument\n", BOLD, YELLOW, NORMAL);
+        } else {
+            config_load(cfg, target);
+        }
+    } else if (!strcmp(cmd, "L") || !strcmp(cmd, "list")) {
+        breakpoint_list(cfg);
+    } else if (!strcmp(cmd, "m") || !strcmp(cmd, "memmaps")) {
+        debugger_print_mem_maps(cfg->pid);
+    } else if (!strcmp(cmd, "M") || !strcmp(cmd, "memory")) {
+        debugger_print_mem();
+    } else if (!strcmp(cmd, "q") || !strcmp(cmd, "quit")) {
+        return command_quit(cfg);
+    } else if (!strcmp(cmd, "r") || !strcmp(cmd, "run")) {
         char* argv[MAX_ARGS + 1];
         for (size_t i = 0; i < MAX_ARGS; i++) {
             argv[i] = strtok(NULL, " ");
@@ -122,101 +244,19 @@ bool handle_command(char* prompt, config_t* cfg)
             }
         }
         argv[MAX_ARGS] = NULL;
-
-        cfg->state = STATE_RUNNING;
-        debugger_run(cfg, (char* const*)argv);
-        return true;
-    } else if (!strcmp(cmd, "c") || !strcmp(cmd, "cont")) {
-        debug_cont(cfg);
-        return true;
+        command_run(cfg, argv);
     } else if (!strcmp(cmd, "s") || !strcmp(cmd, "step")) {
         breakpoint_step(cfg);
-        return true;
-    } else if (!strcmp(cmd, "b") || !strcmp(cmd, "break")) {
-        if (cfg->state == STATE_UNINIT) {
-            printf("%s%serror:%s no executable has been loaded yet\n", BOLD, RED, NORMAL);
-            return true;
-        }
-        char* value = strtok(NULL, " ");
-        if (!value) {
-            printf("%s%serror:%s command `break` takes at least one argument\n", BOLD, RED, NORMAL);
-            return true;
-        }
-        errno = 0;
-        char* endptr;
-        size_t addr;
-        if (value[0] == '0' && value[1] == 'x') {
-            addr = strtoumax(value + 2, &endptr, 16);
-        } else {
-            addr = strtoumax(value, &endptr, 16);
-        }
-        if (errno != 0 || endptr == value || *endptr != '\0') {
-            printf("%s%serror:%s failed to parse address\n", BOLD, RED, NORMAL);
-            return true;
-        }
-        printf("Parsed address = 0x%zx\n", addr);
-        if (breakpoint_new(cfg, addr) < 0) {
-            printf("%s%serror:%s failed to create new breakpoint\n", BOLD, RED, NORMAL);
-        }
-        return true;
-    } else if (!strcmp(cmd, "l") || !strcmp(cmd, "load")) {
-        char* target = strtok(NULL, " ");
-        if (!target) {
-            printf("%s%serror:%s command `target` takes at least one argument\n", BOLD, RED, NORMAL);
-            return true;
-        }
-        if (substr_cnt(target, " ") > 1) {
-            printf("%s%swarning:%s command `target` only takes one argument\n", BOLD, YELLOW, NORMAL);
-            return true;
-        }
-        config_load(cfg, target);
-        return true;
-    } else if (!strcmp(cmd, "i") || !strcmp(cmd, "info")) {
-        config_print(cfg);
-        return true;
-    } else if (!strcmp(cmd, "h") || !strcmp(cmd, "help")) {
-        printf("%sAvailable commands:%s\n", BOLD, NORMAL);
-        printf("\n  Program configuration:\n");
-        printf("    %srun,       r%s\t -- Launch the executable in the debugger.\n", BOLD, NORMAL);
-        printf("    %starget,    t%s\t -- Add the argument as the target executable.\n", BOLD, NORMAL);
-        printf("    %sinfo,      i%s\t -- Print information about the current debugger configuration.\n", BOLD, NORMAL);
-        printf("    %shelp,      h%s\t -- Print the available debugger cmds.\n", BOLD, NORMAL);
-        printf("    %squit,      q%s\t -- Quit the debugger.\n", BOLD, NORMAL);
-        printf("\n  Debugging options:\n");
-        printf("    %smemory,    m%s\t -- Print memory usage status.\n", BOLD, NORMAL);
-        printf("    %smmaps,    mm%s\t -- Print memory maps.\n", BOLD, NORMAL);
-        printf("    %sregisters, R%s\t -- Print registers status.\n", BOLD, NORMAL);
-        printf("    %skill,      k%s\t -- Sends a signal to child process. Sends a SIGKILL signal by default.\n", BOLD, NORMAL);
-        return true;
-    } else if (!strcmp(cmd, "q") || !strcmp(cmd, "quit")) {
-        printf("\nBye :)\n");
-        return false;
     } else if (!strcmp(cmd, "R") || !strcmp(cmd, "registers")) {
-        debug_print_regs(cfg);
-        return true;
-    } else if (!strcmp(cmd, "m") || !strcmp(cmd, "memory")) {
-        debug_print_mem();
-        return true;
-    } else if (!strcmp(cmd, "mm") || !strcmp(cmd, "mmaps")) {
-        debug_print_mem_maps(cfg->inferior_pid);
-        return true;
-    } else if (!strcmp(cmd, "k") || !strcmp(cmd, "kill")) {
-        printf("debug : %d\n", cfg->inferior_pid);
-        i32 res = debug_kill(cfg, "");
-        printf("kill res %d\n", res);
-        return true;
+        debugger_print_regs(cfg);
     } else if (!strcmp(cmd, "pids")) {
-        debug_print_pids();
-        return true;
-    } else if (!strcmp(cmd, "childpid")) {
-        debug_print_child_pids(cfg);
-        return true;
+        debugger_pids(cfg);
     } else if (!strcmp(cmd, "path")) {
-        debug_print_real_path(cfg);
-        return true;
+        debugger_print_real_path(cfg);
     } else {
-        printf("%s%serror:%s `%s` is an unknow cmd\n", BOLD, RED, NORMAL, cmd);
-        printf("Type `h` or `help` to display available cmds\n");
-        return true;
+        printf("%s%serror:%s `%s` is an unknow command\n", BOLD, RED, NORMAL, cmd);
+        printf("Type `h` or `help` to display available commands\n");
     }
+
+    return true;
 }
