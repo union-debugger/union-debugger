@@ -9,24 +9,6 @@ typedef struct {
     int real_mem_curr, real_mem_peak, virt_mem_curr, virt_mem_peak;
 } p_mem;
 
-i32 debugger_run(config_t *cfg, char* const* argv);
-i32 debugger_wait_signal(config_t* cfg);
-i32 debug_cont(config_t* cfg);
-
-void debug_get_regs(i8 child, struct user_regs_struct* regs);
-void debug_print_regs(config_t* cfg);
-
-void debug_get_mem(p_mem* mem);
-void debug_print_mem();
-
-i8 debug_kill(config_t* cfg, char const* args);
-
-void debug_print_pids();
-void debug_print_child_pids(config_t* cfg);
-
-void debug_print_real_path(config_t* cfg);
-
-
 typedef struct {
     int major;
     int minor;
@@ -48,4 +30,13 @@ typedef struct {
     char path[300];
 } p_mem_maps;
 
-void debug_print_mem_maps(int inferior_pid);
+ssize_t debugger_run(config_t *cfg, char* const* argv);
+ssize_t debugger_wait_signal(config_t* cfg);
+ssize_t debugger_cont(config_t* cfg);
+ssize_t debugger_kill(config_t* cfg, i32 const signal);
+void debugger_print_regs(config_t* cfg);
+void debugger_get_mem(p_mem* mem);
+void debugger_print_mem();
+void debugger_pids(config_t* cfg);
+void debugger_print_real_path(config_t* cfg);
+void debugger_print_mem_maps(int inferior_pid);

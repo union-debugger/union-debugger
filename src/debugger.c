@@ -12,7 +12,6 @@
 #include <sys/user.h>
 #include <sys/wait.h>
 #include <linux/ptrace.h>
-// #include <asm/siginfo.h>
 
 #include "../include/breakpoint.h"
 #include "../include/debugger.h"
@@ -20,31 +19,32 @@
 #include "../include/types.h"
 #include "../include/config.h"
 
-i32 debugger_run(config_t *cfg, char* const* argv)
+ssize_t debugger_run(config_t *cfg, char* const* argv)
 {
     if (cfg->state == STATE_UNINIT) {
-        printf("%sinfo:%s debugger is not loaded\n", MAGENTA, NORMAL);
+        printf("%sinfo:%s debugger is uninitialized\n", MAGENTA, NORMAL);
+        return -1;
     }
 
     i32 status = 0;
-    char* path = cfg->target;
+    char* path = cfg->path;
     char* args[MAX_ARGS + 2];
     args[0] = path;
     memcpy(&args[1], argv, MAX_ARGS * sizeof(char*));
     args[MAX_ARGS + 1] = NULL;
 
-    pid_t inferior_pid = fork();
-    if (inferior_pid == 0) {
+    pid_t pid = fork();
+    if (pid == 0) {
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
         personality(ADDR_NO_RANDOMIZE);
-        execvp(cfg->target, args);
+        execvp(cfg->path, args);
         printf("Failed to execute inferior: %s\n", strerror(errno));
         abort();
-    } else if (inferior_pid > 0) {
-        cfg->inferior_pid = inferior_pid;
+    } else if (pid > 0) {
+        cfg->pid = pid;
         config_print(cfg);
         status = debugger_wait_signal(cfg);
-        if (ptrace(PTRACE_SETOPTIONS, cfg->inferior_pid, NULL, PTRACE_O_EXITKILL) < 0) {
+        if (ptrace(PTRACE_SETOPTIONS, cfg->pid, NULL, PTRACE_O_EXITKILL) < 0) {
             return -1;
         }
     } else {
@@ -54,35 +54,37 @@ i32 debugger_run(config_t *cfg, char* const* argv)
     return status;
 }
 
-i32 debugger_wait_signal(config_t* cfg)
+ssize_t debugger_wait_signal(config_t* cfg)
 {
     i32 wstatus;
 
 restart:
-    if (waitpid(cfg->inferior_pid, &wstatus, 0) < 0) {
+    if (waitpid(cfg->pid, &wstatus, 0) < 0) {
         return -1;
     }
 
     if (WIFEXITED(wstatus)) {
-        printf("Inferior process #%d terminated normally (code %d)\n", cfg->inferior_pid, WEXITSTATUS(wstatus));
+        printf("Inferior process #%d terminated normally (code %d).\n", cfg->pid, WEXITSTATUS(wstatus));
+        cfg->state = STATE_INIT;
     } else if (WIFSIGNALED(wstatus)) {
         siginfo_t siginfo;
-        if (ptrace(PTRACE_GETSIGINFO, cfg->inferior_pid, NULL, &siginfo) < 0 && errno == EINVAL) {
+        if (ptrace(PTRACE_GETSIGINFO, cfg->pid, NULL, &siginfo) < 0 && errno == EINVAL) {
             goto restart;
         }
         printf("Inferior process #%d stopped at address %p\n",
-               cfg->inferior_pid, siginfo.si_addr);
+               cfg->pid, siginfo.si_addr);
         i32 signal = WTERMSIG(wstatus);
         printf("Inferior process #%d terminated.\nReceived signal SIG%s: %s\n",
-               cfg->inferior_pid,
+               cfg->pid,
                sigabbrev_np(signal),
                sigdescr_np(signal));
+        cfg->state = STATE_INIT;
     } else if (WIFSTOPPED(wstatus)) {
         i32 stopsig = WSTOPSIG(wstatus);
         if (stopsig == SIGTRAP) {
             // Breakpoint and execvp
             struct user_regs_struct registers;
-            if (ptrace(PTRACE_GETREGS, cfg->inferior_pid, NULL, &registers) < 0) {
+            if (ptrace(PTRACE_GETREGS, cfg->pid, NULL, &registers) < 0) {
                 return -1;
             }
 
@@ -96,11 +98,11 @@ restart:
         } else {
             if (stopsig == SIGSTOP || stopsig == SIGTSTP || stopsig == SIGTTIN || stopsig == SIGTTOU) {
                 siginfo_t siginfo;
-                if (ptrace(PTRACE_GETSIGINFO, cfg->inferior_pid, NULL, &siginfo) < 0 && errno == EINVAL) {
+                if (ptrace(PTRACE_GETSIGINFO, cfg->pid, NULL, &siginfo) < 0 && errno == EINVAL) {
                     goto restart;
                 }
             }
-            ptrace(PTRACE_CONT, cfg->inferior_pid, NULL, stopsig);
+            ptrace(PTRACE_CONT, cfg->pid, NULL, stopsig);
             goto restart;
         }
     } else {
@@ -110,7 +112,7 @@ restart:
     return wstatus;
 }
 
-i32 debug_cont(config_t* cfg)
+ssize_t debugger_cont(config_t* cfg)
 {
     if (cfg->state != STATE_RUNNING) {
         printf("%sinfo:%s debugger is not running\n", MAGENTA, NORMAL);
@@ -122,7 +124,7 @@ i32 debug_cont(config_t* cfg)
         return -1;
     }
 
-    if (ptrace(PTRACE_CONT, cfg->inferior_pid, NULL, NULL) < 0) {
+    if (ptrace(PTRACE_CONT, cfg->pid, NULL, NULL) < 0) {
         printf("%s%serror:%s failed to continue\n", BOLD, RED, NORMAL);
         return -1;
     }
@@ -131,64 +133,56 @@ i32 debug_cont(config_t* cfg)
     return 0;
 }
 
-void debug_print_pids() {
-    pid_t pid = getpid();
-    pid_t ppid = getppid();
-    printf("pid: \t%d\n", pid);
-    printf("ppid: \t%d\n", ppid);
+void debugger_pids(config_t* cfg)
+{
+    printf("Child PID:\t%d\n", cfg->pid);
+    printf("Child PPID:\t%d\n", getpid());
 }
 
-void debug_print_child_pids(config_t* cfg) {
-    printf("Child pid: \t%d\n", cfg->inferior_pid);
-    printf("Child ppid: \t%d\n", getpid());
+void debugger_get_regs(pid_t pid, struct user_regs_struct* regs)
+{
+    i32 ret = ptrace(PTRACE_GETREGS, pid, 0, regs);
+    UDB_assert(ret >= 0, "could not get registers");
 }
 
-void debug_get_regs(i8 child, struct user_regs_struct *regs) {
-    i8 res = 0;
-    res = ptrace(PTRACE_GETREGS, child, 0, regs);
-    UDB_assert((res != 0), "Cannot PTRACE_GETREGS");
-}
-
-void debug_print_regs(config_t *cfg) {
-    // REGISTERS
+void debugger_print_regs(config_t* cfg)
+{
     struct user_regs_struct regs;
-    debug_get_regs(cfg->inferior_pid, &regs);
-    // i8 res = ptrace(PTRACE_GETREGS, child, 0, regs);
-    // UDB_assert(!res, "Cannot PTRACE_GETREGS");
+    debugger_get_regs(cfg->pid, &regs);
 
-    printf("Child r15 \t : %lld\n", regs.r15);
-    printf("Child r14 \t : %lld\n", regs.r14);
-    printf("Child r13 \t : %lld\n", regs.r13);
-    printf("Child r12 \t : %lld\n", regs.r12);
-    printf("Child rbp \t : %lld\n", regs.rbp);
-    printf("Child rbx \t : %lld\n", regs.rbx);
-    printf("Child r11 \t : %lld\n", regs.r11);
-    printf("Child r10 \t : %lld\n", regs.r10);
-    printf("Child r9 \t : %lld\n", regs.r9);
-    printf("Child r8 \t : %lld\n", regs.r8);
-    printf("Child rax \t : %lld\n", regs.rax);
-    printf("Child rcx \t : %lld\n", regs.rcx);
-    printf("Child rdx \t : %lld\n", regs.rdx);
-    printf("Child rsi \t : %lld\n", regs.rsi);
-    printf("Child rdi \t : %lld\n", regs.rdi);
-    printf("Child orig_rax \t : %lld\n", regs.orig_rax); // Last system call
-    printf("Child rip \t : %lld\n", regs.rip);
-    printf("Child cs \t : %lld\n", regs.cs);
-    printf("Child eflags \t : %lld\n", regs.eflags);
-    printf("Child rsp \t : %lld\n", regs.rsp);
-    printf("Child ss \t : %lld\n", regs.ss);
-    printf("Child fs_base \t : %lld\n", regs.fs_base);
-    printf("Child gs_base \t : %lld\n", regs.gs_base);
-    printf("Child ds \t : %lld\n", regs.ds);
-    printf("Child es \t : %lld\n", regs.es);
-    printf("Child fs \t : %lld\n", regs.fs);
-    printf("Child gs \t : %lld\n", regs.gs);
+    printf("orig_rax: %lld\n", regs.orig_rax); // Last system call
+    printf("rax:      %lld\n", regs.rax);
+    printf("rbx:      %lld\n", regs.rbx);
+    printf("rcx:      %lld\n", regs.rcx);
+    printf("rdx:      %lld\n", regs.rdx);
+    printf("rsi:      %lld\n", regs.rsi);
+    printf("rdi:      %lld\n", regs.rdi);
+    printf("r8:       %lld\n", regs.r8);
+    printf("r9:       %lld\n", regs.r9);
+    printf("r10:      %lld\n", regs.r10);
+    printf("r11:      %lld\n", regs.r11);
+    printf("r12:      %lld\n", regs.r12);
+    printf("r13:      %lld\n", regs.r13);
+    printf("r14:      %lld\n", regs.r14);
+    printf("r15:      %lld\n", regs.r15);
+    printf("rbp:      %lld\n", regs.rbp);
+    printf("rsp:      %lld\n", regs.rsp);
+    printf("rip:      %lld\n", regs.rip);
+    printf("eflags:   %lld\n", regs.eflags);
+    printf("cs:       %lld\n", regs.cs);
+    printf("ds:       %lld\n", regs.ds);
+    printf("es:       %lld\n", regs.es);
+    printf("fs:       %lld\n", regs.fs);
+    printf("fs_base:  %lld\n", regs.fs_base);
+    printf("gs:       %lld\n", regs.gs);
+    printf("gs_base:  %lld\n", regs.gs_base);
+    printf("ss:       %lld\n", regs.ss);
 }
 
-void debug_get_mem(p_mem* mem){
-    char buffer[1024] = "";
-
-    FILE* fp_status = fopen("/proc/self/status", "r");
+void debugger_get_mem(p_mem* mem)
+{
+    char buffer[1024];
+    FILE* fp_status = fopen("/proc/self/status", "rb");
 
     while (fscanf(fp_status, " %1023s", buffer) == 1) {
         if (strcmp(buffer, "VmRSS:") == 0) {
@@ -207,14 +201,15 @@ void debug_get_mem(p_mem* mem){
     fclose(fp_status);
 }
 
-void debug_print_mem(){
+void debugger_print_mem()
+{
     p_mem mem;
-    debug_get_mem(&mem);
-
-    printf("currRealMem : %d\n", mem.real_mem_curr);
-    printf("peakRealMem : %d\n", mem.real_mem_peak);
-    printf("currVirtMem : %d\n", mem.virt_mem_curr);
-    printf("peakVirtMem : %d\n", mem.virt_mem_peak);
+    debugger_get_mem(&mem);
+    printf("Memory usage:\n");
+    printf("Current real memory: %d\n", mem.real_mem_curr);
+    printf("Current virtual memory: %d\n", mem.virt_mem_curr);
+    printf("Peak real memory: %d\n", mem.real_mem_peak);
+    printf("Peak virtual memory: %d\n", mem.virt_mem_peak);
 }
 
 
@@ -231,14 +226,15 @@ void debug_print_mem(){
 // Segfault occurs if process attemps to access memory in a non expected way.
 // Permissions can be changed using the mprotect system call.
 // Offset : If memory is mapped from a file, offset is the offset from where to read. If not from a file, it's 0
-// [dev]ive in /dev/* represent it's driver ID (major) and a (minor) metadata used by the related driver to identify the block.
+// [dev]ive in /dev/ * represent it's driver ID (major) and a (minor) metadata used by the related driver to identify the block.
 // pathname : the file readed, if any. Can also be - [stack] for main thread's stack
 //                                                 - [stack:tid] stack for a specific Thread ID
 //                                                 - [vdso] virtual dynamically linked shared object. When using standard functions, defined in the C library, they are called from the kernel, which can be very slow. To avoid this, we load the library in the environment of each program using its auxiliary vector. (ELF) (AT_SYSINFO_EHDR tag) // can be shown LD_SHOW_AUXV=1 /bin/true
 */
 
-void debug_get_mem_maps(p_mem_maps* p_mmaps, int inferior_pid) {
-    char path[250];
+void debugger_get_mem_maps(p_mem_maps* p_mmaps, int inferior_pid)
+{
+    char path[BUFFER_LEN];
     snprintf(path, sizeof(path), "/proc/%u/maps", inferior_pid);
     FILE* fp = fopen(path, "r");
 
@@ -282,10 +278,11 @@ void debug_get_mem_maps(p_mem_maps* p_mmaps, int inferior_pid) {
 }
 
 
-void debug_print_mem_maps(int inferior_pid) {
+void debugger_print_mem_maps(int inferior_pid)
+{
     int p_mmaps_size = 20;
     p_mem_maps p_mmaps[p_mmaps_size];
-    debug_get_mem_maps(p_mmaps, inferior_pid);
+    debugger_get_mem_maps(p_mmaps, inferior_pid);
     for (int i = 0; i < p_mmaps_size; i++) {
         // printf("============\n");
         printf("%s\n", p_mmaps[i].line);
@@ -293,39 +290,37 @@ void debug_print_mem_maps(int inferior_pid) {
     }
 }
 
-
-
-void debug_get_real_path(pid_t inferior_pid, char* real_path) {
+void debugger_get_real_path(pid_t pid, char* real_path)
+{
     char proc_addr[BUFFER_LEN];
-    sprintf(proc_addr, "/proc/%d/exe", inferior_pid);
-    readlink(proc_addr, real_path, BUFFER_LEN);
+    sprintf(proc_addr, "/proc/%d/exe", pid);
+    ssize_t ret = readlink(proc_addr, real_path, BUFFER_LEN);
+    UDB_assert(ret >= 0, "failed to read real path");
 }
 
-void debug_print_real_path(config_t* cfg) {
+void debugger_print_real_path(config_t* cfg) {
     char real_path[BUFFER_LEN];
-    debug_get_real_path(cfg->inferior_pid, real_path);
-    printf("Real Path : %s\n", real_path);
+    debugger_get_real_path(cfg->pid, real_path);
+    printf("Real path: %s\n", real_path);
 }
 
-i8 debug_kill(config_t* cfg, char const* arguments) {
-    // char **args = strsplit(cfg->args, arguments, " ");
-
-    // int nb_args = substr_cnt(arguments, " ");
-    // printf("%d ARGS !\n", nb_args);
-    // for (int i = 0; i < nb_args; i++)
-    //     printf("%d : %s\n", i, args[i]);
-
-    // UDB_assert(cfg && args, "invalid parameter (null pointer)");
-    i8 signal = 0;
-
-    // signal = atoi(args[0]);
-    printf("KILL %d\n", signal);
-
-    i8 res;
-    if ((res = kill(cfg->inferior_pid, signal)) != 0)
-        printf("Killing (%d) %d failed\n", res, cfg->inferior_pid);
+ssize_t debugger_kill(config_t* cfg, i32 const signal)
+{
+    i32 ret = kill(cfg->pid, signal);
+    if (ret < 0) {
+#if __GLIBC__ >= 2 && __GLIBC_MINOR__ >= 32
+        printf("%s%serror:%s failed to send signal SIG%s to process %d\n",
+               BOLD, RED, NORMAL, sigabbrev_np(signal), cfg->pid);
+#else
+        printf("%s%serror:%s failed to send signal to process %d\n",
+               BOLD, RED, NORMAL, cfg->pid);
+#endif
+    }
+    printf("Sent signal SIG%s to process %d.\n", sigabbrev_np(signal), cfg->pid);
 
     // Zombie Child Assertion
-    UDB_assert((res = waitpid(cfg->inferior_pid, NULL, WNOHANG) != 0), "Child is zombie");
-    return res;
+    ret = waitpid(cfg->pid, NULL, WNOHANG);
+    UDB_assert(ret >= 0, "child process is a zombie");
+
+    return ret;
 }
