@@ -19,9 +19,9 @@ void help()
 
 char* strstrip(char* str)
 {
-    UD_assert(str, "invalid parameter (null pointer)");
+    UDB_assert(str, "invalid parameter (null pointer)");
     char* strip = malloc(strlen(str) + 1);
-    UD_assert(strip, "stripped string allocation failed");
+    UDB_assert(strip, "stripped string allocation failed");
     if (strip) {
         char* ptr = strip;
         while (*str != '\0') {
@@ -38,25 +38,25 @@ char* strstrip(char* str)
 
 char** strsplit(char** args, char const* str, char const* delimeter)
 {
-    UD_assert(str && delimeter, "invalid parameter (null pointer)");
+    UDB_assert(str && delimeter, "invalid parameter (null pointer)");
     char* cpy = malloc(strlen(str) + 1);
-    UD_assert(cpy, "string allocation failed");
+    UDB_assert(cpy, "string allocation failed");
     cpy = strcpy(cpy, str); 
-    UD_assert(cpy, "string copy failed");
+    UDB_assert(cpy, "string copy failed");
 
     char* tmp = strtok(cpy, delimeter);
-    UD_assert(tmp, "delimeter not found in string");
+    UDB_assert(tmp, "delimeter not found in string");
 
     size_t nb_delims = 1;
     while (tmp) {
         args = realloc(args, (++nb_delims) * sizeof(char*));
-        UD_assert(args, "token's reallocation failed");
+        UDB_assert(args, "token's reallocation failed");
         args[nb_delims - 1] = tmp;
         tmp = strtok(NULL, delimeter);
     }
 
     args = realloc(args, (nb_delims + 1) * sizeof(char*));
-    UD_assert(args, "token's reallocation failed");
+    UDB_assert(args, "token's reallocation failed");
     args[nb_delims] = NULL;
 
     return args;
@@ -64,7 +64,7 @@ char** strsplit(char** args, char const* str, char const* delimeter)
 
 size_t substr_cnt(char const* str, char const* substr)
 {
-    UD_assert(str && substr, "invalid parameter (null pointer)");
+    UDB_assert(str && substr, "invalid parameter (null pointer)");
     size_t count = 1;
     char const* tmp = str;
     while ((tmp = strstr(tmp, substr))) {

@@ -10,7 +10,7 @@
 config_t* config_new(char* target)
 {
     config_t* cfg = malloc(sizeof(config_t));
-    UD_assert(cfg, "config allocation failed");
+    UDB_assert(cfg, "config allocation failed");
     cfg->target = target;
     cfg->pid = getpid();
     cfg->inferior_pid = -1;
@@ -22,7 +22,7 @@ config_t* config_new(char* target)
 
 void config_clear(config_t* self)
 {
-    UD_assert(self, "invalid parameter (null pointer)");
+    UDB_assert(self, "invalid parameter (null pointer)");
     free(self->target);
     self->inferior_pid = -1;
     self->inferior_start = 0;
@@ -32,34 +32,34 @@ void config_clear(config_t* self)
 
 void config_drop(config_t* self)
 {
-    UD_assert(self, "invalid parameter (null pointer)");
+    UDB_assert(self, "invalid parameter (null pointer)");
     config_clear(self);
     free(self);
 }
 
 void config_load(config_t* self, char const* target)
 {
-    UD_assert(self && target, "invalid parameter (null pointer)");
+    UDB_assert(self && target, "invalid parameter (null pointer)");
     if (self->target) {
         printf("Executable has already been loaded\n");
         return;
     }
     self->target = strdup(target);
-    UD_assert(self->target, "config's target allocation failed");
+    UDB_assert(self->target, "config's target allocation failed");
 
     self->target = strdup(target);
-    UD_assert(self->target, "failed to duplicate target path");
+    UDB_assert(self->target, "failed to duplicate target path");
 
     FILE* fd = fopen(target, "rb");
-    UD_assert(fd, "failed to open target binary");
+    UDB_assert(fd, "failed to open target binary");
 
     u8 elf_buf[sizeof(Elf64_Ehdr)];
     size_t nread = fread(elf_buf, sizeof(Elf64_Ehdr), 1, fd);
     fclose(fd);
-    UD_assert(nread == 1, "failed to read ELF header");
+    UDB_assert(nread == 1, "failed to read ELF header");
 
     Elf64_Ehdr* elf_hdr = (Elf64_Ehdr*)(elf_buf);
-    UD_assert(elf_hdr->e_ident[EI_MAG0] == ELFMAG0 && elf_hdr->e_ident[EI_MAG1] == ELFMAG1 &&
+    UDB_assert(elf_hdr->e_ident[EI_MAG0] == ELFMAG0 && elf_hdr->e_ident[EI_MAG1] == ELFMAG1 &&
               elf_hdr->e_ident[EI_MAG2] == ELFMAG2 && elf_hdr->e_ident[EI_MAG3] == ELFMAG3 &&
               elf_hdr->e_ident[EI_CLASS] == ELFCLASS64 && elf_hdr->e_machine == EM_X86_64,
               "ELF is invalid");
@@ -71,7 +71,7 @@ void config_load(config_t* self, char const* target)
 
 void config_print(config_t const* self)
 {
-    UD_assert(self, "invalid parameter (null pointer)");
+    UDB_assert(self, "invalid parameter (null pointer)");
     printf("Current executable is set to `%s`, PID #%d (start address: 0x%zx)\n",
            self->target, self->inferior_pid, self->inferior_start);
 }

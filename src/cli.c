@@ -27,7 +27,7 @@ config_t* parse_args(int const argc, char* const* argv) {
     };
 
     config_t* cfg = config_new(NULL);
-    UD_assert(cfg, "failed to create config");
+    UDB_assert(cfg, "failed to create config");
 
     i32 current;
     do {

@@ -48,7 +48,7 @@ i32 debugger_run(config_t *cfg, char* const* argv)
             return -1;
         }
     } else {
-        UD_assert(false, "fork failed");
+        UDB_assert(false, "fork failed");
     }
 
     return status;
@@ -146,7 +146,7 @@ void debug_print_child_pids(config_t* cfg) {
 void debug_get_regs(i8 child, struct user_regs_struct *regs) {
     i8 res = 0;
     res = ptrace(PTRACE_GETREGS, child, 0, regs);
-    UD_assert((res != 0), "Cannot PTRACE_GETREGS");
+    UDB_assert((res != 0), "Cannot PTRACE_GETREGS");
 }
 
 void debug_print_regs(config_t *cfg) {
@@ -154,7 +154,7 @@ void debug_print_regs(config_t *cfg) {
     struct user_regs_struct regs;
     debug_get_regs(cfg->inferior_pid, &regs);
     // i8 res = ptrace(PTRACE_GETREGS, child, 0, regs);
-    // UD_assert(!res, "Cannot PTRACE_GETREGS");
+    // UDB_assert(!res, "Cannot PTRACE_GETREGS");
 
     printf("Child r15 \t : %lld\n", regs.r15);
     printf("Child r14 \t : %lld\n", regs.r14);
@@ -242,7 +242,7 @@ void debug_get_mem_maps(p_mem_maps* p_mmaps, int inferior_pid) {
     snprintf(path, sizeof(path), "/proc/%u/maps", inferior_pid);
     FILE* fp = fopen(path, "r");
 
-    // UD_assert(fp, "Proc Maps open");
+    // UDB_assert(fp, "Proc Maps open");
 
     char* buff = NULL;
     size_t buff_size = 0, i = 0;
@@ -315,7 +315,7 @@ i8 debug_kill(config_t* cfg, char const* arguments) {
     // for (int i = 0; i < nb_args; i++)
     //     printf("%d : %s\n", i, args[i]);
 
-    // UD_assert(cfg && args, "invalid parameter (null pointer)");
+    // UDB_assert(cfg && args, "invalid parameter (null pointer)");
     i8 signal = 0;
 
     // signal = atoi(args[0]);
@@ -326,6 +326,6 @@ i8 debug_kill(config_t* cfg, char const* arguments) {
         printf("Killing (%d) %d failed\n", res, cfg->inferior_pid);
 
     // Zombie Child Assertion
-    UD_assert((res = waitpid(cfg->inferior_pid, NULL, WNOHANG) != 0), "Child is zombie");
+    UDB_assert((res = waitpid(cfg->inferior_pid, NULL, WNOHANG) != 0), "Child is zombie");
     return res;
 }
