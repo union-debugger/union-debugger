@@ -248,17 +248,15 @@ void debug_print_mem_maps(int inferior_pid) {
 
 
 
-
-
-// i32 needed
-void debug_get_real_path(char real_path[], i32 path_size) {
-    readlink("/proc/self/exe", real_path, path_size);
+void debug_get_real_path(pid_t inferior_pid, char* real_path) {
+    char proc_addr[BUFFER_LEN];
+    sprintf(proc_addr, "/proc/%d/exe", inferior_pid);
+    readlink(proc_addr, real_path, BUFFER_LEN);
 }
 
-void debug_print_real_path(){
-    i32 path_size = 300;
-    char real_path[path_size];
-    debug_get_real_path(real_path, path_size);
+void debug_print_real_path(config_t* cfg) {
+    char real_path[BUFFER_LEN];
+    debug_get_real_path(cfg->inferior_pid, real_path);
     printf("Real Path : %s\n", real_path);
 }
 

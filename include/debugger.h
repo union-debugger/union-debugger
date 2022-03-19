@@ -25,8 +25,7 @@ i8 debug_kill(config_t* cfg, char const* args);
 void debug_print_pids();
 void debug_print_child_pids(config_t* cfg);
 
-void debug_get_real_path(char real_path [], i32 path_size);
-void debug_print_real_path();
+void debug_print_real_path(config_t* cfg);
 
 
 typedef struct {

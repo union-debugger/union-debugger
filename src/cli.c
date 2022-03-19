@@ -172,7 +172,7 @@ bool handle_command(char* prompt, config_t* cfg)
         debug_print_child_pids(cfg);
         return true;
     } else if (!strcmp(cmd, "path")) {
-        debug_print_real_path();
+        debug_print_real_path(cfg);
         return true;
     } else {
         printf("%s%serror:%s `%s` is an unknow cmd\n", BOLD, RED, NORMAL, cmd);
