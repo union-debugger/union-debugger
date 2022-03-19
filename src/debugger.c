@@ -12,6 +12,7 @@
 #include <sys/user.h>
 #include <sys/wait.h>
 #include <linux/ptrace.h>
+// #include <asm/siginfo.h>
 
 #include "../include/breakpoint.h"
 #include "../include/debugger.h"
@@ -215,6 +216,86 @@ void debug_print_mem(){
     printf("currVirtMem : %d\n", mem.virt_mem_curr);
     printf("peakVirtMem : %d\n", mem.virt_mem_peak);
 }
+
+
+/*
+** Memory Maps
+** TODO : transform struct in vec.
+** TODO : Linenoise autocompletion failing with `memory`
+** TODO : Must verify the child is running before executing the command (verif with cfg else give the debugger a current status and verify it)
+
+// Not able to get maps elsewhere than in the /proc
+
+// start & end of memory address of the contigeous virtual memory
+// Permissions : can be [r]ead, [w]rite, e[x]ecuted. If region not [s]hared, it's [p]rivate.
+// Segfault occurs if process attemps to access memory in a non expected way.
+// Permissions can be changed using the mprotect system call.
+// Offset : If memory is mapped from a file, offset is the offset from where to read. If not from a file, it's 0
+// [dev]ive in /dev/* represent it's driver ID (major) and a (minor) metadata used by the related driver to identify the block.
+// pathname : the file readed, if any. Can also be - [stack] for main thread's stack
+//                                                 - [stack:tid] stack for a specific Thread ID
+//                                                 - [vdso] virtual dynamically linked shared object. When using standard functions, defined in the C library, they are called from the kernel, which can be very slow. To avoid this, we load the library in the environment of each program using its auxiliary vector. (ELF) (AT_SYSINFO_EHDR tag) // can be shown LD_SHOW_AUXV=1 /bin/true
+*/
+
+void debug_get_mem_maps(p_mem_maps* p_mmaps, int inferior_pid) {
+    char path[250];
+    snprintf(path, sizeof(path), "/proc/%u/maps", inferior_pid);
+    FILE* fp = fopen(path, "r");
+
+    // UD_assert(fp, "Proc Maps open");
+
+    char* buff = NULL;
+    size_t buff_size = 0, i = 0;
+    while (getline(&buff, &buff_size, fp) != EOF) {
+        memcpy(p_mmaps[i].line, strtok(buff, "\n"), 500);
+        // printf("%s\n%s\n=====\n", buff, p_mmaps[i].line);
+        char* buff_start = strtok(buff, "-");
+        char* buff_end = strtok(NULL, " ");
+        char* buff_perm = strtok(NULL, " ");
+        char* buff_offset = strtok(NULL, " ");
+        char* buff_dev_major = strtok(NULL, ":");
+        char* buff_dev_minor = strtok(NULL, " ");
+        char* buff_inode = strtok(NULL, " ");
+        char* buff_path = strtok(NULL, " ");
+
+        // Start, end and size are integers, instead of hexa.
+        p_mmaps[i].start = strtoul(buff_start, NULL, 16);
+        p_mmaps[i].end = strtoul(buff_end, NULL, 16);
+        p_mmaps[i].size = p_mmaps[0].end - p_mmaps[0].start;
+
+        p_mmaps[i].perm = 0;
+        if (buff_perm[0] == 'r') p_mmaps[i].perm |= 0x04;
+        if (buff_perm[1] == 'w') p_mmaps[i].perm |= 0x02;
+        if (buff_perm[2] == 'x') p_mmaps[i].perm |= 0x01;
+        p_mmaps[i].shared = buff_perm[3] == 'p' ? false : true;
+
+        // p_mmaps[i].offset = strtoul(buff_offset, NULL, 16);
+        p_mmaps[i].offset = atoi(buff_offset);
+        p_mmaps[i].device.major = strtoul(buff_dev_major, NULL, 10);
+        p_mmaps[i].device.minor = strtoul(buff_dev_minor, NULL, 10);
+        p_mmaps[i].inode = atoi(buff_inode);
+
+        strcpy(p_mmaps[i].path, buff_path);
+        i++;
+    }
+    fclose(fp);
+}
+
+
+void debug_print_mem_maps(int inferior_pid) {
+    int p_mmaps_size = 20;
+    p_mem_maps p_mmaps[p_mmaps_size];
+    debug_get_mem_maps(p_mmaps, inferior_pid);
+    for (int i = 0; i < p_mmaps_size; i++) {
+        // printf("============\n");
+        printf("%s\n", p_mmaps[i].line);
+        // printf("%ld-%ld %d%s %ld   %d:%d %d \t\t%s\n", p_mmaps[i].start, p_mmaps[i].end, p_mmaps[i].perm, p_mmaps[i].shared == true ? "s" : "p", p_mmaps[i].offset, p_mmaps[i].device.major, p_mmaps[i].device.minor, p_mmaps[i].inode, p_mmaps[i].path);
+    }
+}
+
+
+
+
 
 // i32 needed
 void debug_get_real_path(char real_path[], i32 path_size) {

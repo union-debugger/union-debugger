@@ -26,3 +26,27 @@ void debug_print_child_pids(config_t* cfg);
 
 void debug_get_real_path(char real_path [], i32 path_size);
 void debug_print_real_path();
+
+
+typedef struct {
+    int major;
+    int minor;
+} p_mem_device;
+
+typedef struct {
+    char line[500];
+    uintptr_t start;
+    uintptr_t end;
+    unsigned long size;
+
+    int perm;
+    bool shared;
+
+    long offset;
+    p_mem_device device;
+    int inode;
+
+    char path[300];
+} p_mem_maps;
+
+void debug_print_mem_maps(int inferior_pid);
