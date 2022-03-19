@@ -6,11 +6,11 @@ SRC=src
 EXT=ext
 TEST=tests
 TARGET=target
-BINS=target/$(TEST)
 DEPS=target/deps
+BINS=target/$(TEST)
 EXE=udb
 
-build: $(DEPS)/linenoise.o $(DEPS)/main.o $(DEPS)/config.o $(DEPS)/cli.o $(DEPS)/debugger.o $(DEPS)/utils.o
+build: $(DEPS)/linenoise.o $(DEPS)/vec.o $(DEPS)/main.o $(DEPS)/breakpoint.o $(DEPS)/config.o $(DEPS)/cli.o $(DEPS)/debugger.o $(DEPS)/utils.o
 	$(CC) $(CFLAGS) $(OFLAGS) $? -o $(EXE)
 
 test: $(BINS)/hello $(BINS)/loop $(BINS)/mini_segfault

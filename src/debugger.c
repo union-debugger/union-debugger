@@ -1,7 +1,10 @@
+#define _GNU_SOURCE
+
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/personality.h>
@@ -11,13 +14,18 @@
 #include <linux/ptrace.h>
 // #include <asm/siginfo.h>
 
+#include "../include/breakpoint.h"
 #include "../include/debugger.h"
 #include "../include/utils.h"
 #include "../include/types.h"
 #include "../include/config.h"
 
-i32 debug_run(config_t *cfg, char* const* argv)
+i32 debugger_run(config_t *cfg, char* const* argv)
 {
+    if (cfg->state == STATE_UNINIT) {
+        printf("%sinfo:%s debugger is not loaded\n", MAGENTA, NORMAL);
+    }
+
     i32 status = 0;
     char* path = cfg->target;
     char* args[MAX_ARGS + 2];
@@ -35,7 +43,7 @@ i32 debug_run(config_t *cfg, char* const* argv)
     } else if (inferior_pid > 0) {
         cfg->inferior_pid = inferior_pid;
         config_print(cfg);
-        debug_capture_signal(cfg);
+        status = debugger_wait_signal(cfg);
         if (ptrace(PTRACE_SETOPTIONS, cfg->inferior_pid, NULL, PTRACE_O_EXITKILL) < 0) {
             return -1;
         }
@@ -46,30 +54,48 @@ i32 debug_run(config_t *cfg, char* const* argv)
     return status;
 }
 
-i32 debug_capture_signal(config_t* cfg)
+i32 debugger_wait_signal(config_t* cfg)
 {
     i32 wstatus;
+
 restart:
     if (waitpid(cfg->inferior_pid, &wstatus, 0) < 0) {
         return -1;
     }
 
     if (WIFEXITED(wstatus)) {
-        printf("Child process #%d terminated normally (code %d)\n", cfg->inferior_pid, WEXITSTATUS(wstatus));
+        printf("Inferior process #%d terminated normally (code %d)\n", cfg->inferior_pid, WEXITSTATUS(wstatus));
     } else if (WIFSIGNALED(wstatus)) {
-        printf("Child process #%d terminated by signal %s (%d)\n", cfg->inferior_pid, strsignal(WTERMSIG(wstatus)), WTERMSIG(wstatus));
+        siginfo_t siginfo;
+        if (ptrace(PTRACE_GETSIGINFO, cfg->inferior_pid, NULL, &siginfo) < 0 && errno == EINVAL) {
+            goto restart;
+        }
+        printf("Inferior process #%d stopped at address %p\n",
+               cfg->inferior_pid, siginfo.si_addr);
+        i32 signal = WTERMSIG(wstatus);
+        printf("Inferior process #%d terminated.\nReceived signal SIG%s: %s\n",
+               cfg->inferior_pid,
+               sigabbrev_np(signal),
+               sigdescr_np(signal));
     } else if (WIFSTOPPED(wstatus)) {
         i32 stopsig = WSTOPSIG(wstatus);
         if (stopsig == SIGTRAP) {
-            printf("Child process #%d has stopped\n", cfg->inferior_pid);
             // Breakpoint and execvp
-            struct user_regs_struct regs;
-            if (ptrace(PTRACE_GETREGS, cfg->inferior_pid, NULL, &regs) < 0) {
+            struct user_regs_struct registers;
+            if (ptrace(PTRACE_GETREGS, cfg->inferior_pid, NULL, &registers) < 0) {
                 return -1;
             }
+
+            u64 address = registers.rip - 1;
+            breakpoint_t* b = breakpoint_peek(cfg->breakpoints, address);
+            if (b) {
+                printf("Stopped at breakpoint (address: %zx)\n", b->address);
+            } else {
+                // debug_cont(cfg);
+            }
         } else {
-            siginfo_t siginfo;
             if (stopsig == SIGSTOP || stopsig == SIGTSTP || stopsig == SIGTTIN || stopsig == SIGTTOU) {
+                siginfo_t siginfo;
                 if (ptrace(PTRACE_GETSIGINFO, cfg->inferior_pid, NULL, &siginfo) < 0 && errno == EINVAL) {
                     goto restart;
                 }
@@ -82,6 +108,27 @@ restart:
     }
 
     return wstatus;
+}
+
+i32 debug_cont(config_t* cfg)
+{
+    if (cfg->state != STATE_RUNNING) {
+        printf("%sinfo:%s debugger is not running\n", MAGENTA, NORMAL);
+        return -1;
+    }
+
+    if (breakpoint_step(cfg) < 0) {
+        printf("%s%serror:%s failed to step\n", BOLD, RED, NORMAL);
+        return -1;
+    }
+
+    if (ptrace(PTRACE_CONT, cfg->inferior_pid, NULL, NULL) < 0) {
+        printf("%s%serror:%s failed to continue\n", BOLD, RED, NORMAL);
+        return -1;
+    }
+
+    debugger_wait_signal(cfg);
+    return 0;
 }
 
 void debug_print_pids() {

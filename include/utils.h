@@ -8,7 +8,7 @@
 
 #include <string.h>
 
-#define UD_assert(expr, msg)                                                       \
+#define UD_assert(expr, msg)                                                        \
     do {                                                                            \
         if (!(expr)) {                                                              \
             fprintf(stderr, "%s%sassertion failed:%s %s:%d in %s\n  { `%s` }: %s\n",\
@@ -18,7 +18,7 @@
         }                                                                           \
     } while (0)
 
-#define UD_debug(value, fmt)                                                       \
+#define UD_debug(value, fmt)                                                        \
     do {                                                                            \
         if (!strcmp(fmt, "str")) {                                                  \
             fprintf(stderr, "%s%sdebug%s: %s:%d\n  --> identifier `%s` = '%s'\n",   \

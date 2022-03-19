@@ -1,12 +1,21 @@
 #pragma once
 
+#include "../ext/vec.h"
 #include "types.h"
 
-typedef struct config_s {
+enum state_t {
+    STATE_UNINIT,
+    STATE_INIT,
+    STATE_RUNNING,
+};
+
+typedef struct config_t {
     char* target;
     pid_t pid;
     pid_t inferior_pid;
     size_t inferior_start;
+    vec_t* breakpoints;
+    enum state_t state;
 } config_t;
 
 config_t* config_new(char* target);

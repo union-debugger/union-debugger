@@ -1,10 +1,13 @@
+#include <errno.h>
 #include <getopt.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 #include "../ext/linenoise.h"
+#include "../include/breakpoint.h"
 #include "../include/cli.h"
 #include "../include/consts.h"
 #include "../include/debugger.h"
@@ -57,6 +60,12 @@ void completions(char const* buf, linenoiseCompletions* lc) {
         break;
     case 'c':
         linenoiseAddCompletion(lc, "cont ");
+        break;
+    case 's':
+        linenoiseAddCompletion(lc, "step ");
+        break;
+    case 'b':
+        linenoiseAddCompletion(lc, "break ");
         break;
     case 'l':
         linenoiseAddCompletion(lc, "load ");
@@ -114,10 +123,41 @@ bool handle_command(char* prompt, config_t* cfg)
         }
         argv[MAX_ARGS] = NULL;
 
-        debug_run(cfg, (char* const*)argv);
+        cfg->state = STATE_RUNNING;
+        debugger_run(cfg, (char* const*)argv);
         return true;
     } else if (!strcmp(cmd, "c") || !strcmp(cmd, "cont")) {
-        debug_capture_signal(cfg);
+        debug_cont(cfg);
+        return true;
+    } else if (!strcmp(cmd, "s") || !strcmp(cmd, "step")) {
+        breakpoint_step(cfg);
+        return true;
+    } else if (!strcmp(cmd, "b") || !strcmp(cmd, "break")) {
+        if (cfg->state == STATE_UNINIT) {
+            printf("%s%serror:%s no executable has been loaded yet\n", BOLD, RED, NORMAL);
+            return true;
+        }
+        char* value = strtok(NULL, " ");
+        if (!value) {
+            printf("%s%serror:%s command `break` takes at least one argument\n", BOLD, RED, NORMAL);
+            return true;
+        }
+        errno = 0;
+        char* endptr;
+        size_t addr;
+        if (value[0] == '0' && value[1] == 'x') {
+            addr = strtoumax(value + 2, &endptr, 16);
+        } else {
+            addr = strtoumax(value, &endptr, 16);
+        }
+        if (errno != 0 || endptr == value || *endptr != '\0') {
+            printf("%s%serror:%s failed to parse address\n", BOLD, RED, NORMAL);
+            return true;
+        }
+        printf("Parsed address = 0x%zx\n", addr);
+        if (breakpoint_new(cfg, addr) < 0) {
+            printf("%s%serror:%s failed to create new breakpoint\n", BOLD, RED, NORMAL);
+        }
         return true;
     } else if (!strcmp(cmd, "l") || !strcmp(cmd, "load")) {
         char* target = strtok(NULL, " ");
