@@ -146,7 +146,8 @@ void command_kill(config_t* cfg, char const* signal)
 bool command_quit(config_t* cfg)
 {
     if (cfg->state == STATE_RUNNING) {
-        printf("One process is currently being debugged. Are you sure? [y/n] ");
+        printf("Inferior process %d is currently being debugged.\n", cfg->pid);
+        printf("Are you sure you want to quit? [y/n] ");
         char ans[BUFFER_LEN];
         scanf("%s", ans);
         if (ans[0] == 'y' || ans[0] == 'Y') {

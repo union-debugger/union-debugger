@@ -67,14 +67,14 @@ i32 breakpoint_enable_address(config_t* cfg, size_t const address)
     if (id < 0) {
         return -1;
     }
-    breakpoint_t b = *(breakpoint_t*)(vec_peek(cfg->breakpoints, id));
-    if (!b.is_enabled) {
-        i64 original_data = breakpoint_write_bin(cfg, b.address, INT3);
+    breakpoint_t* b = vec_peek(cfg->breakpoints, id);
+    if (!b->is_enabled) {
+        i64 original_data = breakpoint_write_bin(cfg, b->address, INT3);
         if (original_data < 0) {
             return -1;
         }
-        b.original_data = original_data;
-        b.is_enabled = true;
+        b->original_data = original_data;
+        b->is_enabled = true;
     }
 
     return 0;
@@ -91,12 +91,12 @@ i32 breakpoint_disable_address(config_t* cfg, size_t const address)
     if (id < 0) {
         return -1;
     }
-    breakpoint_t b = *(breakpoint_t*)(vec_peek(cfg->breakpoints, id));
-    if (b.is_enabled) {
-        if (breakpoint_write_bin(cfg, b.address, b.original_data) == -1) {
+    breakpoint_t* b = vec_peek(cfg->breakpoints, id);
+    if (b->is_enabled) {
+        if (breakpoint_write_bin(cfg, b->address, b->original_data) == -1) {
             return -1;
         }
-        b.is_enabled = false;
+        b->is_enabled = false;
     }
 
     return 0;
@@ -106,6 +106,12 @@ i32 breakpoint_new(config_t* cfg, size_t const address)
 {
     if (cfg->state != STATE_RUNNING) {
         printf("%sinfo:%s debugger is not running\n", MAGENTA, NORMAL);
+        return -1;
+    }
+
+    if (breakpoint_peek(cfg->breakpoints, address) != NULL) {
+        printf("%sinfo:%s a breakpoint at address 0x%zx already exists\n",
+               MAGENTA, NORMAL, address);
         return -1;
     }
 
@@ -125,7 +131,7 @@ i32 breakpoint_new(config_t* cfg, size_t const address)
         return -1; 
     }
 
-    printf("%sinfo:%s breakpoint #%zu set at address 0x%16zx\n", MAGENTA, NORMAL, cfg->breakpoints->len, address);
+    printf("%sinfo:%s breakpoint #%zu set at address 0x%zx\n", MAGENTA, NORMAL, cfg->breakpoints->len, address);
     return ret;
 }
 
@@ -135,14 +141,14 @@ i32 breakpoint_enable_id(config_t* cfg, size_t const id)
         return -1;
     }
 
-    breakpoint_t b = *(breakpoint_t*)(vec_peek(cfg->breakpoints, id));
-    if (!b.is_enabled) {
-        i64 original_data = breakpoint_write_bin(cfg, b.address, INT3);
+    breakpoint_t* b = vec_peek(cfg->breakpoints, id);
+    if (!b->is_enabled) {
+        i64 original_data = breakpoint_write_bin(cfg, b->address, INT3);
         if (original_data < 0) {
             return -1;
         }
-        b.original_data = original_data;
-        b.is_enabled = true;
+        b->original_data = original_data;
+        b->is_enabled = true;
     }
 
     return 0;
@@ -154,12 +160,12 @@ i32 breakpoint_disable_id(config_t* cfg, size_t const id)
         return -1;
     }
 
-    breakpoint_t b = *(breakpoint_t*)(vec_peek(cfg->breakpoints, id));
-    if (b.is_enabled) {
-        if (breakpoint_write_bin(cfg, b.address, b.original_data) == -1) {
+    breakpoint_t* b = vec_peek(cfg->breakpoints, id);
+    if (b->is_enabled) {
+        if (breakpoint_write_bin(cfg, b->address, b->original_data) == -1) {
             return -1;
         }
-        b.is_enabled = false;
+        b->is_enabled = false;
     }
 
     return 0;
@@ -173,8 +179,8 @@ i32 breakpoint_remove_address(config_t* cfg, size_t const address)
     }
 
     for (size_t i = 0; i < cfg->breakpoints->len; i++) {
-        breakpoint_t current = *(breakpoint_t*)(vec_peek(cfg->breakpoints, i));
-        if (current.address == address) {
+        breakpoint_t* current = vec_peek(cfg->breakpoints, i);
+        if (current->address == address) {
             return vec_delete(cfg->breakpoints, i) == 0 ? 0 : -1;
         }
     }
@@ -239,8 +245,8 @@ void breakpoint_list(config_t* cfg)
     }
 
     for (size_t i = 0; i < cfg->breakpoints->len; i++) {
-        breakpoint_t b = *(breakpoint_t*)(vec_peek(cfg->breakpoints, i));
-        printf("Breakpoint #%zu at %zx %s\n", i + 1, b.address,
-               b.is_enabled ? "\033[32m(enabled)\033[0m" : "\033[31m(disabled)\033[0m");
+        breakpoint_t* b = vec_peek(cfg->breakpoints, i);
+        printf("Breakpoint #%zu at 0x%zx %s\n", i + 1, b->address,
+               b->is_enabled == true ? "\033[32m(enabled)\033[0m" : "\033[31m(disabled)\033[0m");
     }
 }
