@@ -1,5 +1,6 @@
+#include <errno.h>
+#include <inttypes.h>
 #include <stdio.h>
-#include <signal.h>
 #include <unistd.h>
 
 #include "../include/consts.h"
@@ -72,4 +73,24 @@ size_t substr_cnt(char const* str, char const* substr)
         tmp++;
     }
     return count;
+}
+
+size_t parse_value(char const* str)
+{
+    errno = 0;
+    char* endptr;
+    size_t addr;
+
+    // Check if user used `0x` prefix 
+    if (str[0] == '0' && str[1] == 'x') {
+        addr = strtoumax(str + 2, &endptr, 16);
+    } else {
+        addr = strtoumax(str, &endptr, 10);
+    }
+
+    if (errno != 0 || endptr == str || *endptr != '\0') {
+        return SIZE_MAX;
+    }
+
+    return addr;
 }

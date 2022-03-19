@@ -35,3 +35,4 @@ void help();
 char* strstrip(char* str);
 char** strsplit(char** args, char const* str, char const* delimeter);
 size_t substr_cnt(char const* str, char const* substr);
+size_t parse_value(char const* str);
