@@ -139,7 +139,6 @@ void command_help()
     printf("    %sdebug_str,    D        %s-- Print debug_str dwarf info.\n", BOLD, NORMAL);
     printf("    %smemmaps,      m        %s-- Print memory maps.\n", BOLD, NORMAL);
     printf("    %smemory,       M        %s-- Print memory usage status.\n", BOLD, NORMAL);
-    printf("    %sregisters,    R        %s-- Print registers status.\n", BOLD, NORMAL);
     printf("    %slibs,         T        %s-- Print program libraries.\n", BOLD, NORMAL);
     printf("    %sshared_libs,  S        %s-- Print only the program shared libraries.\n", BOLD, NORMAL);
     printf("    %sregisters,    R        %s-- Print registers status.\n", BOLD, NORMAL);
