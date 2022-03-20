@@ -41,6 +41,7 @@ void completions(char const* buf, linenoiseCompletions* lc)
     case 'l':
         linenoiseAddCompletion(lc, "load ");
         linenoiseAddCompletion(lc, "list ");
+        linenoiseAddCompletion(lc, "libs ");
         break;
     case 'm':
         linenoiseAddCompletion(lc, "memmaps ");
@@ -59,6 +60,7 @@ void completions(char const* buf, linenoiseCompletions* lc)
         break;
     case 's':
         linenoiseAddCompletion(lc, "step ");
+        linenoiseAddCompletion(lc, "shared_libs ");
         break;
     default:
         return;
@@ -124,23 +126,26 @@ void command_disable(config_t* cfg, char* value)
 void command_help()
 {
     printf("%sAvailable commands:%s\n", BOLD, NORMAL);
-    printf("    %sload,      l <path> %s-- Load debugger with the given program's path.\n", BOLD, NORMAL);
-    printf("    %sinfo,      i        %s-- Print current debugger configuration.\n", BOLD, NORMAL);
-    printf("    %srun,       r [args] %s-- Launch the program in the debugger (with optional arguments).\n", BOLD, NORMAL);
-    printf("    %sbreak,     b <addr> %s-- Set a breakpoint at the given address.\n", BOLD, NORMAL);
-    printf("    %senable,    e [id]   %s-- Enable the breakpoint with the given ID (enables all breakpoints if no ID is specified.\n", BOLD, NORMAL);
-    printf("    %sdisable,   d [id]   %s-- Disable the breakpoint with the given ID (disables all breakpoints if no ID is specified.\n", BOLD, NORMAL);
-    printf("    %slist,      L        %s-- List breakpoints.\n", BOLD, NORMAL);
-    printf("    %shelp,      h        %s-- Print the available debugger commands.\n", BOLD, NORMAL);
-    printf("    %squit,      q        %s-- Quit the debugger.\n\n", BOLD, NORMAL);
-    printf("    %spids,      p        %s-- Print main's & inferior's pids.\n", BOLD, NORMAL);
-    printf("    %spath,      p        %s-- Print the debugged file path.\n", BOLD, NORMAL);
-    printf("    %sdebug_str, D        %s-- Print debug_str dwarf info.\n", BOLD, NORMAL);
-    printf("    %smemmaps,   m        %s-- Print memory maps.\n", BOLD, NORMAL);
-    printf("    %sbacktrace, B        %s-- Backtrace the current stack.\n", BOLD, NORMAL);
-    printf("    %smemory,    M        %s-- Print memory usage status.\n", BOLD, NORMAL);
-    printf("    %sregisters, R        %s-- Print registers status.\n", BOLD, NORMAL);
-    printf("    %skill,      k [sig]  %s-- Send signal to debugged program (SIGKILL if no signal is specified).\n", BOLD, NORMAL);
+    printf("    %sload,         l <path> %s-- Load debugger with the given program's path.\n", BOLD, NORMAL);
+    printf("    %sinfo,         i        %s-- Print current debugger configuration.\n", BOLD, NORMAL);
+    printf("    %srun,          r [args] %s-- Launch the program in the debugger (with optional arguments).\n", BOLD, NORMAL);
+    printf("    %sbreak,        b <addr> %s-- Set a breakpoint at the given address.\n", BOLD, NORMAL);
+    printf("    %senable,       e [id]   %s-- Enable the breakpoint with the given ID (enables all breakpoints if no ID is specified.\n", BOLD, NORMAL);
+    printf("    %sdisable,      d [id]   %s-- Disable the breakpoint with the given ID (disables all breakpoints if no ID is specified.\n", BOLD, NORMAL);
+    printf("    %slist,         L        %s-- List breakpoints.\n", BOLD, NORMAL);
+    printf("    %shelp,         h        %s-- Print the available debugger commands.\n", BOLD, NORMAL);
+    printf("    %squit,         q        %s-- Quit the debugger.\n\n", BOLD, NORMAL);
+    printf("    %spids,         p        %s-- Print main's & inferior's pids.\n", BOLD, NORMAL);
+    printf("    %spath,         p        %s-- Print the debugged file path.\n", BOLD, NORMAL);
+    printf("    %sdebug_str,    D        %s-- Print debug_str dwarf info.\n", BOLD, NORMAL);
+    printf("    %smemmaps,      m        %s-- Print memory maps.\n", BOLD, NORMAL);
+    printf("    %sbacktrace,    B        %s-- Backtrace the current stack.\n", BOLD, NORMAL);
+    printf("    %smemory,       M        %s-- Print memory usage status.\n", BOLD, NORMAL);
+    printf("    %sregisters,    R        %s-- Print registers status.\n", BOLD, NORMAL);
+    printf("    %slibs,         T        %s-- Print program libraries.\n", BOLD, NORMAL);
+    printf("    %sshared_libs,  S        %s-- Print only the program shared libraries.\n", BOLD, NORMAL);
+    printf("    %sregisters,    R        %s-- Print registers status.\n", BOLD, NORMAL);
+    printf("    %skill,         k [sig]  %s-- Send signal to debugged program (SIGKILL if no signal is specified).\n", BOLD, NORMAL);
 }
 
 void command_kill(config_t* cfg, char const* signal)
@@ -265,6 +270,10 @@ bool handle_command(char* prompt, config_t* cfg)
         breakpoint_step(cfg);
     } else if (!strcmp(cmd, "R") || !strcmp(cmd, "registers")) {
         debugger_print_regs(cfg);
+    } else if (!strcmp(cmd, "T") || !strcmp(cmd, "libs")) {
+        debugger_print_libraries(cfg);
+    } else if (!strcmp(cmd, "S") || !strcmp(cmd, "shared_libs")) {
+        debugger_print_shared_libraries(cfg);
     } else if (!strcmp(cmd, "pids")) {
         debugger_pids(cfg);
     } else if (!strcmp(cmd, "path")) {

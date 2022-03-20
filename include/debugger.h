@@ -50,6 +50,20 @@ typedef struct {
     char str[BUFFER_LEN_MAX];
 } debug_str;
 
+// typedef struct {
+//     Elf* elf; // ELF 
+//     Elf_Scn* scn; // ELF descriptor
+//     GElf_Shdr shdr; // Section Header
+//     Elf_Data* data; // Section Data
+// }elf_data;
+
+typedef struct {
+    uint64_t addr;
+    int64_t type;
+    char* strtype;
+    char* name;
+}library;
+
 ssize_t debugger_run(config_t *cfg, char* const* argv);
 ssize_t debugger_wait_signal(config_t* cfg);
 ssize_t debugger_cont(config_t* cfg);
@@ -62,3 +76,5 @@ void debugger_print_real_path(config_t* cfg);
 void debugger_print_mem_maps(config_t* cfg);
 void debugger_backtrace(pid_t inferior_pid);
 void debugger_print_debug_strings(config_t* cfg);
+void debugger_print_libraries(config_t* cfg);
+void debugger_print_shared_libraries(config_t* cfg);
