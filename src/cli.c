@@ -47,6 +47,7 @@ void completions(char const* buf, linenoiseCompletions* lc)
         break;
     case 'p':
         linenoiseAddCompletion(lc, "path ");
+        linenoiseAddCompletion(lc, "pids ");
         break;
     case 'q':
         linenoiseAddCompletion(lc, "quit ");
@@ -131,6 +132,7 @@ void command_help()
     printf("    %slist,      L        %s-- List breakpoints.\n", BOLD, NORMAL);
     printf("    %shelp,      h        %s-- Print the available debugger commands.\n", BOLD, NORMAL);
     printf("    %squit,      q        %s-- Quit the debugger.\n\n", BOLD, NORMAL);
+    printf("    %spids,      p        %s-- Print main's & inferior's pids.\n", BOLD, NORMAL);
     printf("    %spath,      p        %s-- Print the debugged file path.\n", BOLD, NORMAL);
     printf("    %smemmaps,   m        %s-- Print memory maps.\n", BOLD, NORMAL);
     printf("    %sbacktrace, B        %s-- Backtrace the current stack.\n", BOLD, NORMAL);

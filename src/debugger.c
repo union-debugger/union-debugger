@@ -339,10 +339,10 @@ void debugger_print_mem_maps(config_t* cfg)
 {
     vec_t* p_mmaps = vec_with_capacity(1, sizeof(p_mem_maps));
 
-    UDB_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
+    UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
 
     debugger_get_mem_maps(p_mmaps, cfg->pid);
-    for (int i = 0; i < p_mmaps->len; i++) {
+    for (size_t i = 0; i < p_mmaps->len; i++) {
         p_mem_maps* map = (p_mem_maps*)vec_peek(p_mmaps, i);
         printf("%s\n", map->line);
         // printf("%ld-%ld %d%s %ld   %d:%d %d \t\t%s\n", map->start, map->end, map->perm, map->shared == true ? "s" : "p", map->offset, map->device.major, map->device.minor, map->inode, map->path);
@@ -380,6 +380,7 @@ ssize_t debugger_kill(config_t* cfg, i32 const signal)
 
     // Zombie Child Assertion
     ret = waitpid(cfg->pid, NULL, WNOHANG);
+    kill(getpid(), SIGCHLD);
     UDB_assert(ret >= 0, "child process is a zombie");
 
     return ret;

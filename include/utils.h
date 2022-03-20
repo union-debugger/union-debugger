@@ -8,7 +8,7 @@
 
 #include <string.h>
 
-#define UDB_assert(expr, msg)                                                        \
+#define UDB_assert(expr, msg)                                                       \
     do {                                                                            \
         if (!(expr)) {                                                              \
             fprintf(stderr, "%s%sassertion failed:%s %s:%d in %s\n  { `%s` }: %s\n",\
@@ -18,7 +18,24 @@
         }                                                                           \
     } while (0)
 
-#define UDB_debug(value, fmt)                                                        \
+#define UDB_error(expr, msg)                                                        \
+    do {                                                                            \
+        if (!(expr)) {                                                              \
+            fprintf(stderr, "%s%sError:%s %s\n",                                    \
+                    BOLD, RED, NORMAL, msg);                                        \
+            exit(EXIT_FAILURE);                                                     \
+        }                                                                           \
+    } while (0)
+
+#define UDB_user_assert(expr, msg)                                                  \
+    do {                                                                            \
+        if (!(expr)){                                                               \
+            fprintf(stderr, "%s\n", msg);                                           \
+            return;                                                                 \
+        }                                                                           \
+    } while(0)                                                                      \
+
+#define UDB_debug(value, fmt)                                                       \
     do {                                                                            \
         if (!strcmp(fmt, "str")) {                                                  \
             fprintf(stderr, "%s%sdebug%s: %s:%d\n  --> identifier `%s` = '%s'\n",   \
