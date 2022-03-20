@@ -9,7 +9,7 @@ TARGET=target
 DEPS=target/deps
 BINS=target/$(TEST)
 _LIBS=capstone unwind unwind-ptrace unwind-generic dwarf
-LIBS=$(foreach l, $(_LIBS), -l$l)
+LIBS=$(foreach l,$(_LIBS),-l$l)
 EXE=udb
 
 build: $(DEPS)/linenoise.o $(DEPS)/vec.o $(DEPS)/main.o $(DEPS)/breakpoint.o $(DEPS)/config.o $(DEPS)/cli.o $(DEPS)/debugger.o $(DEPS)/utils.o

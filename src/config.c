@@ -47,7 +47,9 @@ void config_load(config_t* self, char const* path)
         self->entry_address = 0;
     }
     self->pid = 0;
-    self->breakpoints = vec_new(sizeof(breakpoint_t));
+    if (!self->breakpoints) {
+        self->breakpoints = vec_new(sizeof(breakpoint_t));
+    }
 }
 
 config_t parse_args(int const argc, char* const* argv)
@@ -60,7 +62,13 @@ config_t parse_args(int const argc, char* const* argv)
         { 0,         0,                 0, 0   },
     };
 
-    config_t cfg;
+    config_t cfg = {
+        .state = STATE_UNINIT,
+        .path = NULL,
+        .pid = 0,
+        .entry_address = 0,
+        .breakpoints = vec_new(sizeof(breakpoint_t)),
+    };
     i32 current;
     do {
         i32 option_idx;
@@ -78,7 +86,7 @@ config_t parse_args(int const argc, char* const* argv)
             config_drop(cfg);
             exit(EXIT_SUCCESS);
         default:
-            break;
+            return cfg;
         }
     } while (current < 0);
 
@@ -88,6 +96,20 @@ config_t parse_args(int const argc, char* const* argv)
 void config_print(config_t const* self)
 {
     UDB_assert(self, "invalid parameter (null pointer)");
+    printf("Current configuration:\n");
+    if (self->state == STATE_UNINIT) {
+        printf("  State: %s\n", "uninit");
+        printf("  Path:  %s\n", "");
+        printf("  PID:   %d\n", self->pid);
+        printf("  Entry: %lu\n", self->entry_address);
+        printf("  No breakpoints set\n");
+    } else {
+        printf("  State: %s\n", self->state == STATE_INIT ? "init" : "running"); 
+        printf("  Path:  %s\n", self->path);
+        printf("  PID:   %d\n", self->pid);
+        printf("  Entry: %lu\n", self->entry_address);
+        breakpoint_list(self);
+    }
 }
 
 void config_drop(config_t self)

@@ -128,19 +128,19 @@ void command_help()
     printf("    %sinfo,      i        %s-- Print current debugger configuration.\n", BOLD, NORMAL);
     printf("    %srun,       r [args] %s-- Launch the program in the debugger (with optional arguments).\n", BOLD, NORMAL);
     printf("    %sbreak,     b <addr> %s-- Set a breakpoint at the given address.\n", BOLD, NORMAL);
-    printf("    %senable,    e [id]   %s-- Enable the breakpoint with the given ID (enables all breakpoints if no ID is specified.\n", BOLD, NORMAL);
-    printf("    %sdisable,   d [id]   %s-- Disable the breakpoint with the given ID (disables all breakpoints if no ID is specified.\n", BOLD, NORMAL);
+    printf("    %senable,    e [id]   %s-- Enable the breakpoint with the given ID.\n", BOLD, NORMAL);
+    printf("    %sdisable,   d [id]   %s-- Disable the breakpoint with the given ID.\n", BOLD, NORMAL);
     printf("    %slist,      L        %s-- List breakpoints.\n", BOLD, NORMAL);
-    printf("    %shelp,      h        %s-- Print the available debugger commands.\n", BOLD, NORMAL);
-    printf("    %squit,      q        %s-- Quit the debugger.\n\n", BOLD, NORMAL);
+    printf("    %sbacktrace, B        %s-- Backtrace the current stack.\n", BOLD, NORMAL);
     printf("    %spids,      p        %s-- Print main's & inferior's pids.\n", BOLD, NORMAL);
     printf("    %spath,      p        %s-- Print the debugged file path.\n", BOLD, NORMAL);
     printf("    %sdebug_str, D        %s-- Print debug_str dwarf info.\n", BOLD, NORMAL);
     printf("    %smemmaps,   m        %s-- Print memory maps.\n", BOLD, NORMAL);
-    printf("    %sbacktrace, B        %s-- Backtrace the current stack.\n", BOLD, NORMAL);
     printf("    %smemory,    M        %s-- Print memory usage status.\n", BOLD, NORMAL);
     printf("    %sregisters, R        %s-- Print registers status.\n", BOLD, NORMAL);
-    printf("    %skill,      k [sig]  %s-- Send signal to debugged program (SIGKILL if no signal is specified).\n", BOLD, NORMAL);
+    printf("    %skill,      k        %s-- Send signal SIGKILL to debugged program.\n", BOLD, NORMAL);
+    printf("    %shelp,      h        %s-- Print the available debugger commands.\n", BOLD, NORMAL);
+    printf("    %squit,      q        %s-- Quit the debugger.\n\n", BOLD, NORMAL);
 }
 
 void command_kill(config_t* cfg, char const* signal)
