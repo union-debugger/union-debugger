@@ -245,7 +245,7 @@ void debugger_print_mem()
 * Reading the .debug_str
 */
 
-void get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr) {
+int get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr) {
     Dwarf_Off offset;
     Dwarf_Signed len;
     char* str;
@@ -266,6 +266,7 @@ void get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr) {
 
         VEC_MUT(dstr, debug_str, dstr->capacity - 1, dst);
         int ret = vec_resize(dstr, dstr->capacity + 1);
+        UDB_assert(ret == VEC_OK, "failed to resize vector");
         i++;
     }
     if (i == 0){
@@ -274,6 +275,7 @@ void get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr) {
     }
     // DW_DLV_NO_ENTRY
     // DW_DLV_ERROR
+    return 0;
 }
 
 
@@ -319,7 +321,8 @@ void debugger_print_debug_strings(config_t* cfg) {
 * using libunwind
 */
 
-void debugger_backtrace(pid_t child) {
+void debugger_backtrace(pid_t child)
+{
     if (ptrace(PTRACE_ATTACH, child, NULL, NULL) == -1) {
         perror("ptrace child");
     }
@@ -359,7 +362,7 @@ void debugger_backtrace(pid_t child) {
 */
 
 // void debugger_get_mem_maps(p_mem_maps* p_mmaps, int inferior_pid)
-void debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
+int debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
 {
     char path[BUFFER_LEN];
     snprintf(path, sizeof(path), "/proc/%u/maps", inferior_pid);
@@ -405,9 +408,11 @@ void debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
 
         VEC_MUT(p_mmaps, p_mem_maps, p_mmaps->capacity-1, map);
         int ret = vec_resize(p_mmaps, p_mmaps->capacity+1);
+        UDB_assert(ret == VEC_OK, "failed to resize vector");
         nm++;
     }
     fclose(fp);
+    return 0;
 }
 
 
