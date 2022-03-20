@@ -79,7 +79,7 @@ ssize_t debugger_run(config_t *cfg, char* const* argv)
         abort();
     } else if (pid > 0) {
         cfg->pid = pid;
-        config_print(cfg);
+        // config_print(cfg);
         status = debugger_wait_signal(cfg);
         if (ptrace(PTRACE_SETOPTIONS, cfg->pid, NULL, PTRACE_O_EXITKILL) < 0) {
             return -1;
@@ -108,7 +108,7 @@ restart:
         if (ptrace(PTRACE_GETSIGINFO, cfg->pid, NULL, &siginfo) < 0 && errno == EINVAL) {
             goto restart;
         }
-        printf("Inferior process %d stopped at address %p\n",
+        printf("Inferior process %d stopped at address %p.\n",
                cfg->pid, siginfo.si_addr);
         i32 signal = WTERMSIG(wstatus);
         printf("Inferior process %d terminated with signal SIG%s: %s\n",
@@ -128,9 +128,9 @@ restart:
             u64 address = registers.rip - 1;
             breakpoint_t* b = breakpoint_peek(cfg->breakpoints, address);
             if (b) {
-                printf("Stopped at breakpoint (address: 0x%zx)\n", b->address);
+                printf("Stopped at breakpoint (address: %s0x%zx%s)\n", YELLOW, b->address, NORMAL);
             } else {
-                // debugger_cont(cfg);
+                printf("Program stopped at SIGTRAP.\nNow is a good time to set up breakpoints! Just type %s`cont`%s if you want to resume execution.\n", BOLD, NORMAL);
             }
         } else {
             if (stopsig == SIGSTOP || stopsig == SIGTSTP || stopsig == SIGTTIN || stopsig == SIGTTOU) {
@@ -172,8 +172,8 @@ ssize_t debugger_cont(config_t* cfg)
 
 void debugger_pids(config_t* cfg)
 {
-    printf("Child PID:\t%d\n", cfg->pid);
-    printf("Child PPID:\t%d\n", getpid());
+    printf("Child PID:  %s%d%s\n", BOLD, cfg->pid, NORMAL);
+    printf("Child PPID: %s%d%s\n", BOLD, getpid(), NORMAL);
 }
 
 void debugger_get_regs(pid_t pid, struct user_regs_struct* regs)
@@ -243,10 +243,10 @@ void debugger_print_mem()
     p_mem mem;
     debugger_get_mem(&mem);
     printf("Memory usage:\n");
-    printf("Current real memory: %d\n", mem.real_mem_curr);
-    printf("Current virtual memory: %d\n", mem.virt_mem_curr);
-    printf("Peak real memory: %d\n", mem.real_mem_peak);
-    printf("Peak virtual memory: %d\n", mem.virt_mem_peak);
+    printf("  Current real memory: %s%dB%s\n", BOLD, mem.real_mem_curr, NORMAL);
+    printf("  Current virtual memory: %s%dB%s\n", BOLD, mem.virt_mem_curr, NORMAL);
+    printf("  Peak real memory: %s%dB%s\n", BOLD, mem.real_mem_peak, NORMAL);
+    printf("  Peak virtual memory: %s%dB%s\n", BOLD, mem.virt_mem_peak, NORMAL);
 }
 
 
@@ -517,7 +517,7 @@ void debugger_print_shared_libraries(config_t* cfg) {
 * Reading the .debug_str
 */
 
-void get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr) {
+int get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr) {
     Dwarf_Off offset;
     Dwarf_Signed len;
     char* str;
@@ -538,19 +538,20 @@ void get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr) {
 
         VEC_MUT(dstr, debug_str, dstr->capacity - 1, dst);
         int ret = vec_resize(dstr, dstr->capacity + 1);
+        UDB_assert(ret == VEC_OK, "failed to resize vector");
         i++;
     }
-    if (i == 0){
+    if (i == 0) {
         UDB_error(!(ret == DW_DLV_NO_ENTRY), "This executable does not contains debug info");
         UDB_error(!(ret == DW_DLV_ERROR), dwarf_errmsg(err));
     }
     // DW_DLV_NO_ENTRY
     // DW_DLV_ERROR
+    return 0;
 }
 
 void debugger_print_debug_strings(config_t* cfg) {
-
-    UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
+    UDB_user_assert(cfg->state == STATE_RUNNING, "\033[1;31merror:\033[0m debugger is not running");
 
     vec_t* dstr = vec_with_capacity(1, sizeof(debug_str));
 
@@ -572,7 +573,7 @@ void debugger_print_debug_strings(config_t* cfg) {
     if (res == DW_DLV_ERROR) dwarf_dealloc_error(ddbg.dbg, ddbg.error);
     UDB_error(!(res == DW_DLV_ERROR), dwarf_errmsg(ddbg.error));
 
-    UDB_error(!(res == DW_DLV_NO_ENTRY), "This executable does not contains debug info");
+    UDB_error(!(res == DW_DLV_NO_ENTRY), "This executable does not contain any debug info");
 
     get_debug_strings(ddbg.dbg, ddbg.error, dstr);
 
@@ -590,11 +591,8 @@ void debugger_print_debug_strings(config_t* cfg) {
 * using libunwind
 */
 
-void debugger_backtrace(pid_t child) {
-    if (ptrace(PTRACE_ATTACH, child, NULL, NULL) == -1) {
-        perror("ptrace child");
-    }
-
+void debugger_backtrace(pid_t child)
+{
     unw_addr_space_t space = unw_create_addr_space(&_UPT_accessors, __LITTLE_ENDIAN);
     void* target = _UPT_create(child);
 
@@ -604,12 +602,16 @@ void debugger_backtrace(pid_t child) {
     unw_cursor_t cursor;
     unw_init_remote(&cursor, space, target);
 
+    size_t frame = 0;
     while (unw_step(&cursor) > 0) {
         unw_get_reg(&cursor, UNW_REG_IP, &ip);
         unw_get_reg(&cursor, UNW_REG_SP, &sp);
         unw_get_proc_name(&cursor, funcname, sizeof(funcname), &offset);
 
-        printf("ip = %lx, sp = %lx %s(+%lu)\n", (long)ip, (long)sp, funcname, offset);
+        printf("* frame %s#%zu%s\n  --> rip = %s0x%lx%s, rsp = %s0x%lx%s at %s%s%s(+%lu)\n",
+               GREEN, frame, NORMAL,
+               YELLOW, ip, NORMAL, YELLOW, sp, NORMAL, CYAN, funcname, NORMAL, offset);
+        frame++;
     }
 }
 
@@ -630,7 +632,7 @@ void debugger_backtrace(pid_t child) {
 */
 
 // void debugger_get_mem_maps(p_mem_maps* p_mmaps, int inferior_pid)
-void debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
+int debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
 {
     char path[BUFFER_LEN];
     snprintf(path, sizeof(path), "/proc/%u/maps", inferior_pid);
@@ -676,17 +678,18 @@ void debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
 
         VEC_MUT(p_mmaps, p_mem_maps, p_mmaps->capacity-1, map);
         int ret = vec_resize(p_mmaps, p_mmaps->capacity+1);
+        UDB_assert(ret == VEC_OK, "failed to resize vector");
         nm++;
     }
     fclose(fp);
+    return 0;
 }
 
 
 void debugger_print_mem_maps(config_t* cfg)
 {
+    UDB_user_assert(cfg->state == STATE_RUNNING, "\033[1;31merror:\033[0m debugger is not running");
     vec_t* p_mmaps = vec_with_capacity(1, sizeof(p_mem_maps));
-
-    UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
 
     debugger_get_mem_maps(p_mmaps, cfg->pid);
     for (size_t i = 0; i < p_mmaps->len; i++) {
@@ -708,7 +711,7 @@ void debugger_print_real_path(config_t* cfg) {
     char real_path[BUFFER_LEN];
     UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
     debugger_get_real_path(cfg->pid, real_path);
-    printf("Real path: %s\n", real_path);
+    printf("Real path: %s%s%s\n", BOLD, real_path, NORMAL);
 }
 
 ssize_t debugger_kill(config_t* cfg, i32 const signal)

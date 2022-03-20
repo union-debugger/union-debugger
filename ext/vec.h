@@ -193,13 +193,13 @@ int vec_reverse(vec_t* self);
 // - Stops the program if the specified index is equal to or greater than
 //   the length of the vector.
 #define VEC_MUT(vec, type, index, value)                                        \
-{                                                                               \
+do {                                                                            \
     if (!vec || !vec->data) {                                                   \
         return VEC_ERR;                                                         \
     }                                                                           \
                                                                                 \
-    if (index >= vec->len || index < 0) {                                       \
-        printf("Error: index out of bounds, `len` is %lu but `index` is %u\n",  \
+    if (index >= vec->len) {                                                    \
+        printf("Error: index out of bounds, `len` is %zu but `index` is %zu\n", \
             vec->len,                                                           \
             index                                                               \
         );                                                                      \
@@ -208,11 +208,11 @@ int vec_reverse(vec_t* self);
     }                                                                           \
                                                                                 \
     ((type*)vec->data)[index] = value;                                          \
-}
+} while (false)
 
 // Prints a vector to `stdout`.
 #define VEC_PRINT(vec, type)                                    \
-{                                                               \
+do {                                                            \
     if (!vec || !vec->data || vec_is_empty(vec)) {              \
         printf("[ ]\n");                                        \
     } else {                                                    \
@@ -222,6 +222,6 @@ int vec_reverse(vec_t* self);
         }                                                       \
         printf("%d]\n", ((type*)vec->data)[vec->len - 1]);      \
     }                                                           \
-} 
+} while (false) 
 
 #endif

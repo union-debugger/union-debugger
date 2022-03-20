@@ -237,7 +237,7 @@ i32 breakpoint_step(config_t* cfg)
     return 1;
 }
 
-void breakpoint_list(config_t* cfg)
+void breakpoint_list(config_t const* cfg)
 {
     if (vec_is_empty(cfg->breakpoints)) {
         printf("No breakpoints set\n");
