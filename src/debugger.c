@@ -1,23 +1,26 @@
 #define _GNU_SOURCE
 
 #include <errno.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 #include <unistd.h>
+
 #include <sys/personality.h>
-#include <sys/ptrace.h>
 #include <sys/user.h>
 #include <sys/wait.h>
+
+#include <sys/ptrace.h>
 #include <linux/ptrace.h>
+#include <signal.h>
+#include <wait.h>
 
 #include "../include/breakpoint.h"
 #include "../include/debugger.h"
 #include "../include/utils.h"
 #include "../include/types.h"
 #include "../include/config.h"
+#include "../ext/vec.h"
 
 ssize_t debugger_run(config_t *cfg, char* const* argv)
 {
@@ -215,36 +218,37 @@ void debugger_print_mem()
 
 /*
 ** Memory Maps
-** TODO : transform struct in vec.
-** TODO : Linenoise autocompletion failing with `memory`
-** TODO : Must verify the child is running before executing the command (verif with cfg else give the debugger a current status and verify it)
 
-// Not able to get maps elsewhere than in the /proc
+* Not able to get maps elsewhere than in the /proc
 
-// start & end of memory address of the contigeous virtual memory
-// Permissions : can be [r]ead, [w]rite, e[x]ecuted. If region not [s]hared, it's [p]rivate.
-// Segfault occurs if process attemps to access memory in a non expected way.
-// Permissions can be changed using the mprotect system call.
-// Offset : If memory is mapped from a file, offset is the offset from where to read. If not from a file, it's 0
-// [dev]ive in /dev/ * represent it's driver ID (major) and a (minor) metadata used by the related driver to identify the block.
-// pathname : the file readed, if any. Can also be - [stack] for main thread's stack
-//                                                 - [stack:tid] stack for a specific Thread ID
-//                                                 - [vdso] virtual dynamically linked shared object. When using standard functions, defined in the C library, they are called from the kernel, which can be very slow. To avoid this, we load the library in the environment of each program using its auxiliary vector. (ELF) (AT_SYSINFO_EHDR tag) // can be shown LD_SHOW_AUXV=1 /bin/true
+* start & end of memory address of the contigeous virtual memory
+* Permissions : can be [r]ead, [w]rite, e[x]ecuted. If region not [s]hared, it's [p]rivate.
+* Segfault occurs if process attemps to access memory in a non expected way.
+* Permissions can be changed using the mprotect system call.
+* Offset : If memory is mapped from a file, offset is the offset from where to read. If not from a file, it's 0
+* [dev]ive in /dev/ * represent it's driver ID (major) and a (minor) metadata used by the related driver to identify the block.
+* pathname : the file readed, if any. Can also be - [stack] for main thread's stack
+*                                                 - [stack:tid] stack for a specific Thread ID
+*                                                 - [vdso] virtual dynamically linked shared object. When using standard functions, defined in the C library, they are called from the kernel, which can be very slow. To avoid this, we load the library in the environment of each program using its auxiliary vector. (ELF) (AT_SYSINFO_EHDR tag) // can be shown LD_SHOW_AUXV=1 /bin/true
 */
 
-void debugger_get_mem_maps(p_mem_maps* p_mmaps, int inferior_pid)
+// void debugger_get_mem_maps(p_mem_maps* p_mmaps, int inferior_pid)
+void debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
 {
     char path[BUFFER_LEN];
     snprintf(path, sizeof(path), "/proc/%u/maps", inferior_pid);
     FILE* fp = fopen(path, "r");
-
-    // UDB_assert(fp, "Proc Maps open");
+    UDB_assert(fp, "cannot read memory maps");
 
     char* buff = NULL;
-    size_t buff_size = 0, i = 0;
-    while (getline(&buff, &buff_size, fp) != EOF) {
-        memcpy(p_mmaps[i].line, strtok(buff, "\n"), 500);
-        // printf("%s\n%s\n=====\n", buff, p_mmaps[i].line);
+    size_t buff_size = 0;
+    i8 nm = 0; // Number of memory maps
+    p_mem_maps map;
+
+    while (getline(&buff, &buff_size, fp) != -1) {
+        vec_push(p_mmaps, &map);
+        // memcpy(map.line, strtok(buff, "\n"), buff_size);
+        sprintf(map.line, strtok(buff, "\n"));
         char* buff_start = strtok(buff, "-");
         char* buff_end = strtok(NULL, " ");
         char* buff_perm = strtok(NULL, " ");
@@ -255,38 +259,43 @@ void debugger_get_mem_maps(p_mem_maps* p_mmaps, int inferior_pid)
         char* buff_path = strtok(NULL, " ");
 
         // Start, end and size are integers, instead of hexa.
-        p_mmaps[i].start = strtoul(buff_start, NULL, 16);
-        p_mmaps[i].end = strtoul(buff_end, NULL, 16);
-        p_mmaps[i].size = p_mmaps[0].end - p_mmaps[0].start;
+        map.start = strtoul(buff_start, NULL, 16);
+        map.end = strtoul(buff_end, NULL, 16);
+        map.size = map.end - map.start;
 
-        p_mmaps[i].perm = 0;
-        if (buff_perm[0] == 'r') p_mmaps[i].perm |= 0x04;
-        if (buff_perm[1] == 'w') p_mmaps[i].perm |= 0x02;
-        if (buff_perm[2] == 'x') p_mmaps[i].perm |= 0x01;
-        p_mmaps[i].shared = buff_perm[3] == 'p' ? false : true;
+        map.perm = 0;
+        if (buff_perm[0] == 'r') map.perm |= 0x04;
+        if (buff_perm[1] == 'w') map.perm |= 0x02;
+        if (buff_perm[2] == 'x') map.perm |= 0x01;
+        map.shared = buff_perm[3] == 'p' ? false : true;
 
-        // p_mmaps[i].offset = strtoul(buff_offset, NULL, 16);
-        p_mmaps[i].offset = atoi(buff_offset);
-        p_mmaps[i].device.major = strtoul(buff_dev_major, NULL, 10);
-        p_mmaps[i].device.minor = strtoul(buff_dev_minor, NULL, 10);
-        p_mmaps[i].inode = atoi(buff_inode);
+        // map.offset = strtoul(buff_offset, NULL, 16);
+        map.offset = atoi(buff_offset);
+        map.device.major = strtoul(buff_dev_major, NULL, 10);
+        map.device.minor = strtoul(buff_dev_minor, NULL, 10);
+        map.inode = atoi(buff_inode);
 
-        strcpy(p_mmaps[i].path, buff_path);
-        i++;
+        strcpy(map.path, buff_path);
+
+        VEC_MUT(p_mmaps, p_mem_maps, p_mmaps->capacity-1, map);
+        int ret = vec_resize(p_mmaps, p_mmaps->capacity+1);
+        nm++;
     }
     fclose(fp);
 }
 
 
-void debugger_print_mem_maps(int inferior_pid)
+void debugger_print_mem_maps(config_t* cfg)
 {
-    int p_mmaps_size = 20;
-    p_mem_maps p_mmaps[p_mmaps_size];
-    debugger_get_mem_maps(p_mmaps, inferior_pid);
-    for (int i = 0; i < p_mmaps_size; i++) {
-        // printf("============\n");
-        printf("%s\n", p_mmaps[i].line);
-        // printf("%ld-%ld %d%s %ld   %d:%d %d \t\t%s\n", p_mmaps[i].start, p_mmaps[i].end, p_mmaps[i].perm, p_mmaps[i].shared == true ? "s" : "p", p_mmaps[i].offset, p_mmaps[i].device.major, p_mmaps[i].device.minor, p_mmaps[i].inode, p_mmaps[i].path);
+    vec_t* p_mmaps = vec_with_capacity(1, sizeof(p_mem_maps));
+
+    UDB_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
+
+    debugger_get_mem_maps(p_mmaps, cfg->pid);
+    for (int i = 0; i < p_mmaps->len; i++) {
+        p_mem_maps* map = (p_mem_maps*)vec_peek(p_mmaps, i);
+        printf("%s\n", map->line);
+        // printf("%ld-%ld %d%s %ld   %d:%d %d \t\t%s\n", map->start, map->end, map->perm, map->shared == true ? "s" : "p", map->offset, map->device.major, map->device.minor, map->inode, map->path);
     }
 }
 

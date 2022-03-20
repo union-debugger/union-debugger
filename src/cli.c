@@ -234,7 +234,7 @@ bool handle_command(char* prompt, config_t* cfg)
     } else if (!strcmp(cmd, "L") || !strcmp(cmd, "list")) {
         breakpoint_list(cfg);
     } else if (!strcmp(cmd, "m") || !strcmp(cmd, "memmaps")) {
-        debugger_print_mem_maps(cfg->pid);
+        debugger_print_mem_maps(cfg);
     } else if (!strcmp(cmd, "M") || !strcmp(cmd, "memory")) {
         debugger_print_mem();
     } else if (!strcmp(cmd, "q") || !strcmp(cmd, "quit")) {
