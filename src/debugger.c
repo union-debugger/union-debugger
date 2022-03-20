@@ -108,7 +108,7 @@ restart:
             u64 address = registers.rip - 1;
             breakpoint_t* b = breakpoint_peek(cfg->breakpoints, address);
             if (b) {
-                printf("Stopped at breakpoint (address: %zx)\n", b->address);
+                printf("Stopped at breakpoint (address: 0x%zx)\n", b->address);
             } else {
                 // debugger_cont(cfg);
             }
