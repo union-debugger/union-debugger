@@ -29,6 +29,23 @@ ssize_t debugger_run(config_t *cfg, char* const* argv)
         return -1;
     }
 
+    // if (cfg->state == STATE_RUNNING) {
+    //     printf("Inferior process %d is currently being debugged.", cfg->pid);
+    //     printf("Are you sure you want to restart? [y/n] ");
+    //     char ans[BUFFER_LEN];
+    //     scanf("%s", ans);
+    //     if (ans[0] == 'y' || ans[0] == 'Y') {
+    //         i32 ret = debugger_kill(cfg, SIGKILL);
+    //         UDB_assert(ret <= 0, "failed to kill child process");
+    //     } else if (ans[0] == 'n' || ans[0] == 'N') {
+    //         printf("Continuing debugging session\n");
+    //         return true;
+    //     } else {
+    //         printf("\n%s%serror:%s `%s` is not a valid answer\n", BOLD, RED, NORMAL, ans);
+    //         return true;
+    //     }
+    // }
+
     i32 status = 0;
     char* path = cfg->path;
     char* args[MAX_ARGS + 2];
@@ -41,7 +58,7 @@ ssize_t debugger_run(config_t *cfg, char* const* argv)
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
         personality(ADDR_NO_RANDOMIZE);
         execvp(cfg->path, args);
-        printf("Failed to execute inferior: %s\n", strerror(errno));
+        printf("%s%serror:%s failed to execute inferior: %s\n", BOLD, RED, NORMAL, strerror(errno));
         abort();
     } else if (pid > 0) {
         cfg->pid = pid;
@@ -67,17 +84,17 @@ restart:
     }
 
     if (WIFEXITED(wstatus)) {
-        printf("Inferior process #%d terminated normally (code %d).\n", cfg->pid, WEXITSTATUS(wstatus));
+        printf("Inferior process %d terminated normally (code %d).\n", cfg->pid, WEXITSTATUS(wstatus));
         cfg->state = STATE_INIT;
     } else if (WIFSIGNALED(wstatus)) {
         siginfo_t siginfo;
         if (ptrace(PTRACE_GETSIGINFO, cfg->pid, NULL, &siginfo) < 0 && errno == EINVAL) {
             goto restart;
         }
-        printf("Inferior process #%d stopped at address %p\n",
+        printf("Inferior process %d stopped at address %p\n",
                cfg->pid, siginfo.si_addr);
         i32 signal = WTERMSIG(wstatus);
-        printf("Inferior process #%d terminated.\nReceived signal SIG%s: %s\n",
+        printf("Inferior process %d terminated with signal SIG%s: %s\n",
                cfg->pid,
                sigabbrev_np(signal),
                sigdescr_np(signal));
@@ -94,9 +111,9 @@ restart:
             u64 address = registers.rip - 1;
             breakpoint_t* b = breakpoint_peek(cfg->breakpoints, address);
             if (b) {
-                printf("Stopped at breakpoint (address: %zx)\n", b->address);
+                printf("Stopped at breakpoint (address: 0x%zx)\n", b->address);
             } else {
-                // debug_cont(cfg);
+                // debugger_cont(cfg);
             }
         } else {
             if (stopsig == SIGSTOP || stopsig == SIGTSTP || stopsig == SIGTTIN || stopsig == SIGTTOU) {
@@ -238,7 +255,11 @@ void debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
     char path[BUFFER_LEN];
     snprintf(path, sizeof(path), "/proc/%u/maps", inferior_pid);
     FILE* fp = fopen(path, "r");
+<<<<<<< HEAD
     UDB_assert(fp, "cannot read memory maps");
+=======
+    UDB_assert(fp, "failed to open memory maps file");
+>>>>>>> refs/remotes/origin/main
 
     char* buff = NULL;
     size_t buff_size = 0;
@@ -326,6 +347,7 @@ ssize_t debugger_kill(config_t* cfg, i32 const signal)
 #endif
     }
     printf("Sent signal SIG%s to process %d.\n", sigabbrev_np(signal), cfg->pid);
+    cfg->state = STATE_INIT;
 
     // Zombie Child Assertion
     ret = waitpid(cfg->pid, NULL, WNOHANG);
