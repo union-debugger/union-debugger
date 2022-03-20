@@ -20,6 +20,9 @@
 #include <libunwind-ptrace.h>
 #include <endian.h>
 
+#include "../ext/dwarf.h"
+#include "../ext/libdwarf.h"
+
 #include "../include/breakpoint.h"
 #include "../include/debugger.h"
 #include "../include/utils.h"
@@ -235,6 +238,79 @@ void debugger_print_mem()
     printf("Current virtual memory: %d\n", mem.virt_mem_curr);
     printf("Peak real memory: %d\n", mem.real_mem_peak);
     printf("Peak virtual memory: %d\n", mem.virt_mem_peak);
+}
+
+/*
+* Libdwarf
+* Reading the .debug_str
+*/
+
+void get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr) {
+    Dwarf_Off offset;
+    Dwarf_Signed len;
+    char* str;
+    int ret;
+    offset = 0;
+
+    int i = 0;
+    debug_str dst;
+
+    while ((ret = dwarf_get_str(dbg, offset, &str, &len, &err)) == DW_DLV_OK) {
+        vec_push(dstr, &dst);
+        offset += len + 1;
+
+        dst.offset = offset;
+        dst.len = len;
+
+        strcpy(dst.str, str);
+
+        VEC_MUT(dstr, debug_str, dstr->capacity - 1, dst);
+        int ret = vec_resize(dstr, dstr->capacity + 1);
+        i++;
+    }
+    if (i == 0){
+        UDB_error(!(ret == DW_DLV_NO_ENTRY), "This executable does not contains debug info");
+        UDB_error(!(ret == DW_DLV_ERROR), dwarf_errmsg(err));
+    }
+    // DW_DLV_NO_ENTRY
+    // DW_DLV_ERROR
+}
+
+
+void debugger_print_debug_strings(config_t* cfg) {
+
+    UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
+
+    vec_t* dstr = vec_with_capacity(1, sizeof(debug_str));
+
+    dwarf_dbg ddbg;
+    ddbg.errhand = 0;
+    ddbg.tpathlen = FILENAME_MAX;
+    ddbg.errarg = 0;
+    ddbg.error = 0;
+    ddbg.dbg = 0;
+    ddbg.groupnumber = DW_GROUPNUMBER_ANY;
+    int res = 0;
+
+    char real_path[150];
+
+    debugger_get_real_path(cfg->pid, real_path);
+
+    res = dwarf_init_path(real_path, ddbg.true_pathbuf, ddbg.tpathlen, ddbg.groupnumber, ddbg.errhand, ddbg.errarg, &ddbg.dbg, &ddbg.error);
+
+    if (res == DW_DLV_ERROR) dwarf_dealloc_error(ddbg.dbg, ddbg.error);
+    UDB_error(!(res == DW_DLV_ERROR), dwarf_errmsg(ddbg.error));
+
+    UDB_error(!(res == DW_DLV_NO_ENTRY), "This executable does not contains debug info");
+
+    get_debug_strings(ddbg.dbg, ddbg.error, dstr);
+
+    for (size_t i = 0; i < dstr->len; i++) {
+        debug_str* dst = (debug_str*)vec_peek(dstr, i);
+        printf("name at offset 0x%05llx, length % 6lld is '%s'\n", dst->offset, dst->len, dst->str);
+    }
+
+    dwarf_finish(ddbg.dbg);
 }
 
 

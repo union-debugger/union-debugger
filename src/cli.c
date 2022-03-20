@@ -27,6 +27,7 @@ void completions(char const* buf, linenoiseCompletions* lc)
         break;
     case 'd':
         linenoiseAddCompletion(lc, "disable ");
+        linenoiseAddCompletion(lc, "debug_str ");
         break;
     case 'h':
         linenoiseAddCompletion(lc, "help ");
@@ -134,6 +135,7 @@ void command_help()
     printf("    %squit,      q        %s-- Quit the debugger.\n\n", BOLD, NORMAL);
     printf("    %spids,      p        %s-- Print main's & inferior's pids.\n", BOLD, NORMAL);
     printf("    %spath,      p        %s-- Print the debugged file path.\n", BOLD, NORMAL);
+    printf("    %sdebug_str, D        %s-- Print debug_str dwarf info.\n", BOLD, NORMAL);
     printf("    %smemmaps,   m        %s-- Print memory maps.\n", BOLD, NORMAL);
     printf("    %sbacktrace, B        %s-- Backtrace the current stack.\n", BOLD, NORMAL);
     printf("    %smemory,    M        %s-- Print memory usage status.\n", BOLD, NORMAL);
@@ -245,6 +247,8 @@ bool handle_command(char* prompt, config_t* cfg)
         debugger_print_mem_maps(cfg);
     } else if (!strcmp(cmd, "M") || !strcmp(cmd, "memory")) {
         debugger_print_mem();
+    } else if (!strcmp(cmd, "D") || !strcmp(cmd, "debug_str")) {
+        debugger_print_debug_strings(cfg);
     } else if (!strcmp(cmd, "q") || !strcmp(cmd, "quit")) {
         return command_quit(cfg);
     } else if (!strcmp(cmd, "r") || !strcmp(cmd, "run")) {

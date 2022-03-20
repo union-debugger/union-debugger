@@ -1,6 +1,7 @@
 #pragma once
 
 #define BUFFER_LEN 256
+#define BUFFER_LEN_MAX 2560
 #define MAX_ARGS 128
 #define UDB_HISTORY ".udb_history.txt" 
 
