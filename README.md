@@ -14,7 +14,7 @@ the system:
 
 Use the provided Makefile to build the projet:
 ```sh
-make
+make build
 # Optionally, you can build our test programs with the following:
 make test
 ```
