@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <sys/personality.h>
 #include <sys/user.h>
@@ -23,12 +24,20 @@
 #include "../ext/dwarf.h"
 #include "../ext/libdwarf.h"
 
+#include <gelf.h>
+
 #include "../include/breakpoint.h"
 #include "../include/debugger.h"
 #include "../include/utils.h"
 #include "../include/types.h"
 #include "../include/config.h"
 #include "../ext/vec.h"
+
+#include <assert.h>
+#include <fcntl.h>
+#include <gelf.h>
+#include <stdio.h>
+#include <unistd.h>
 
 ssize_t debugger_run(config_t *cfg, char* const* argv)
 {
@@ -240,6 +249,269 @@ void debugger_print_mem()
     printf("  Peak virtual memory: %s%dB%s\n", BOLD, mem.virt_mem_peak, NORMAL);
 }
 
+
+/* 
+* ELF
+* Function gelf_getdyn() retrieves the class - dependent entry at index ndx in data buffer data and copies it to the destination pointed to by argument dyn after translation to class - independent form.
+* Reading ELF Header. 
+*/
+
+char* strDT(Elf64_Sxword DT_value) {
+    switch (DT_value) {
+    case DT_NULL:
+        return "DT_NULL"; break;
+    case DT_NEEDED:
+        return "DT_NEEDED"; break;
+    case DT_PLTRELSZ:
+        return "DT_PLTRELSZ"; break;
+    case DT_PLTGOT:
+        return "DT_PLTGOT"; break;
+    case DT_HASH:
+        return "DT_HASH"; break;
+    case DT_STRTAB:
+        return "DT_STRTAB"; break;
+    case DT_SYMTAB:
+        return "DT_SYMTAB"; break;
+    case DT_RELA:
+        return "DT_RELA"; break;
+    case DT_RELASZ:
+        return "DT_RELASZ"; break;
+    case DT_RELAENT:
+        return "DT_RELAENT"; break;
+    case DT_STRSZ:
+        return "DT_STRSZ"; break;
+    case DT_SYMENT:
+        return "DT_SYMENT"; break;
+    case DT_INIT:
+        return "DT_INIT"; break;
+    case DT_FINI:
+        return "DT_FINI"; break;
+    case DT_SONAME:
+        return "DT_SONAME"; break;
+    case DT_RPATH:
+        return "DT_RPATH"; break;
+    case DT_SYMBOLIC:
+        return "DT_SYMBOLIC"; break;
+    case DT_REL:
+        return "DT_REL"; break;
+    case DT_RELSZ:
+        return "DT_RELSZ"; break;
+    case DT_RELENT:
+        return "DT_RELENT"; break;
+    case DT_PLTREL:
+        return "DT_PLTREL"; break;
+    case DT_DEBUG:
+        return "DT_DEBUG"; break;
+    case DT_TEXTREL:
+        return "DT_TEXTREL"; break;
+    case DT_JMPREL:
+        return "DT_JMPREL"; break;
+    case DT_BIND_NOW:
+        return "DT_BIND_NOW"; break;
+    case DT_INIT_ARRAY:
+        return "DT_INIT_ARRAY"; break;
+    case DT_FINI_ARRAY:
+        return "DT_FINI_ARRAY"; break;
+    case DT_INIT_ARRAYSZ:
+        return "DT_INIT_ARRAYSZ"; break;
+    case DT_FINI_ARRAYSZ:
+        return "DT_FINI_ARRAYSZ"; break;
+    case DT_RUNPATH:
+        return "DT_RUNPATH"; break;
+    case DT_FLAGS:
+        return "DT_FLAGS"; break;
+    case DT_PREINIT_ARRAY:
+        return "DT_PREINIT_ARRAY"; break;
+    case DT_PREINIT_ARRAYSZ:
+        return "DT_PREINIT_ARRAYSZ"; break;
+    case DT_SYMTAB_SHNDX:
+        return "DT_SYMTAB_SHNDX"; break;
+    case DT_NUM:
+        return "DT_NUM"; break;
+    case DT_LOOS:
+        return "DT_LOOS"; break;
+    case DT_HIOS:
+        return "DT_HIOS"; break;
+    case DT_LOPROC:
+        return "DT_LOPROC"; break;
+    case DT_HIPROC:
+        return "DT_HIPROC"; break;
+    case DT_PROCNUM:
+        return "DT_PROCNUM"; break;
+    default:
+        return "DT_Unknown";
+    }
+}
+
+char* strSHT(Elf64_Word SHT_value) {
+    switch (SHT_value) {
+    case SHT_NULL:
+        return "SHT_NULL"; break;
+    case SHT_PROGBITS:
+        return "SHT_PROGBITS"; break;
+    case SHT_SYMTAB:
+        return "SHT_SYMTAB"; break;
+    case SHT_STRTAB:
+        return "SHT_STRTAB"; break;
+    case SHT_RELA:
+        return "SHT_RELA"; break;
+    case SHT_HASH:
+        return "SHT_HASH"; break;
+    case SHT_DYNAMIC:
+        return "SHT_DYNAMIC"; break;
+    case SHT_NOTE:
+        return "SHT_NOTE"; break;
+    case SHT_NOBITS:
+        return "SHT_NOBITS"; break;
+    case SHT_REL:
+        return "SHT_REL"; break;
+    case SHT_SHLIB:
+        return "SHT_SHLIB"; break;
+    case SHT_DYNSYM:
+        return "SHT_DYNSYM"; break;
+    case SHT_INIT_ARRAY:
+        return "SHT_INIT_ARRAY"; break;
+    case SHT_FINI_ARRAY:
+        return "SHT_FINI_ARRAY"; break;
+    case SHT_PREINIT_ARRAY:
+        return "SHT_PREINIT_ARRAY"; break;
+    case SHT_GROUP:
+        return "SHT_GROUP"; break;
+    case SHT_SYMTAB_SHNDX:
+        return "SHT_SYMTAB_SHNDX"; break;
+    case SHT_NUM:
+        return "SHT_NUM"; break;
+    case SHT_LOOS:
+        return "SHT_LOOS"; break;
+    case SHT_GNU_ATTRIBUTES:
+        return "SHT_GNU_ATTRIBUTES"; break;
+    case SHT_GNU_HASH:
+        return "SHT_GNU_HASH"; break;
+    case SHT_GNU_LIBLIST:
+        return "SHT_GNU_LIBLIST"; break;
+    case SHT_CHECKSUM:
+        return "SHT_CHECKSUM"; break;
+    case SHT_LOSUNW:
+        return "SHT_LOSUNW"; break;
+    case SHT_SUNW_COMDAT:
+        return "SHT_SUNW_COMDAT"; break;
+    case SHT_SUNW_syminfo:
+        return "SHT_SUNW_syminfo"; break;
+    case SHT_GNU_verdef:
+        return "SHT_GNU_verdef"; break;
+    case SHT_GNU_verneed:
+        return "SHT_GNU_verneed"; break;
+    case SHT_GNU_versym:
+        return "SHT_GNU_versym"; break;
+    case SHT_LOPROC:
+        return "SHT_LOPROC"; break;
+    case SHT_HIPROC:
+        return "SHT_HIPROC"; break;
+    case SHT_LOUSER:
+        return "SHT_LOUSER"; break;
+    case SHT_HIUSER:
+        return "SHT_HIUSER"; break;
+    default:
+        return "unknown";
+    }
+}
+
+void debugger_get_libraries(char* path, vec_t* libraries) {
+
+    UDB_error(elf_version(EV_CURRENT) != EV_NONE, "Lib pb");
+
+    int fd = open(path, O_RDONLY, 0);
+    UDB_error(fd >= 0, "Failed to open file");
+
+    Elf* elf = elf_begin(fd, ELF_C_READ, NULL);
+    UDB_error(elf != NULL, "Failed to open elf");
+
+    UDB_error(elf_kind(elf) == ELF_K_ELF, "Provided file does not contain ELF data"); //  Verify it's an ELF file.
+
+    Elf_Scn* scn = NULL; // Elf descriptor
+
+    // Get section with next section index.
+    while ((scn = elf_nextscn(elf, scn)) != NULL) {
+        GElf_Shdr shdr = {}; // Section Header
+        UDB_error(gelf_getshdr(scn, &shdr) == &shdr, "Failed to retrieve section header"); // Retrieve section header
+
+        // printf("Reading section ... %s\n", strSHT(shdr.sh_type));
+
+        if (shdr.sh_type == SHT_DYNAMIC) {
+            Elf_Data* data = NULL;
+            data = elf_getdata(scn, data);
+            UDB_error(data != NULL, "Failed to gather data");
+
+            library lib;
+
+            size_t sh_entsize = gelf_fsize(elf, ELF_T_DYN, 1, EV_CURRENT);
+
+            for (size_t i = 0; i < shdr.sh_size / sh_entsize; i++) {
+                vec_push(libraries, &lib);
+                GElf_Dyn dyn = {};
+                UDB_error(gelf_getdyn(data, i, &dyn) == &dyn, "Failed to retrieve section");
+
+                char* res = malloc(sizeof(char) * strlen(strDT(dyn.d_tag)));
+                strcpy(res, strDT(dyn.d_tag));
+                lib.strtype = strdup(res + 3);
+                free(res);
+
+                if (dyn.d_tag == DT_NEEDED) lib.name = elf_strptr(elf, shdr.sh_link, dyn.d_un.d_val);
+                else lib.name = NULL;
+
+                lib.addr = dyn.d_un.d_ptr;
+                lib.type = dyn.d_tag;
+
+                VEC_MUT(libraries, library, libraries->capacity - 1, lib);
+                vec_resize(libraries, libraries->capacity + 1);
+            }
+        }
+    }
+    UDB_error(elf_end(elf) == 0, "Failed to close ELF");
+    UDB_error(close(fd) == 0, "Failed to close file");
+}
+
+
+void debugger_print_libraries(config_t* cfg) {
+    vec_t* libraries = vec_with_capacity(1, sizeof(library));
+
+    UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
+
+    char real_path[BUFFER_LEN];
+    debugger_get_real_path(cfg->pid, real_path);
+    
+    debugger_get_libraries(real_path, libraries);
+
+    for (size_t i = 0; i < libraries->len; i++) {
+        library* lib = (library*)vec_peek(libraries, i);
+        if (lib->type == DT_NEEDED)
+            printf("0x%010lx (%s) \t \t[%s]\n", lib->addr, lib->strtype, lib->name);
+        else
+            printf("0x%010lx (%s)\n", lib->addr, lib->strtype);
+    }
+}
+
+void debugger_print_shared_libraries(config_t* cfg) {
+    vec_t* libraries = vec_with_capacity(1, sizeof(library));
+
+    UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
+
+    char real_path[BUFFER_LEN];
+    debugger_get_real_path(cfg->pid, real_path);
+
+    debugger_get_libraries(real_path, libraries);
+
+    for (size_t i = 0; i < libraries->len; i++) {
+        library* lib = (library*)vec_peek(libraries, i);
+        if (lib->type == DT_NEEDED)
+            printf("0x%010lx (%s) \t \t[%s]\n", lib->addr, lib->strtype, lib->name);
+    }
+}
+
+
+
+
+
 /*
 * Libdwarf
 * Reading the .debug_str
@@ -277,7 +549,6 @@ int get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr) {
     // DW_DLV_ERROR
     return 0;
 }
-
 
 void debugger_print_debug_strings(config_t* cfg) {
     UDB_user_assert(cfg->state == STATE_RUNNING, "\033[1;31merror:\033[0m debugger is not running");
@@ -438,6 +709,7 @@ void debugger_get_real_path(pid_t pid, char* real_path)
 
 void debugger_print_real_path(config_t* cfg) {
     char real_path[BUFFER_LEN];
+    UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
     debugger_get_real_path(cfg->pid, real_path);
     printf("Real path: %s%s%s\n", BOLD, real_path, NORMAL);
 }

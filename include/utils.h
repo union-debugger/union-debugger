@@ -22,8 +22,8 @@
     do {                                                                            \
         if (!(expr)) {                                                              \
             fprintf(stderr, "%s%sError:%s %s\n",                                    \
-                    BOLD, RED, NORMAL, msg);                                        \
-            exit(EXIT_FAILURE);                                                     \
+                BOLD, RED, NORMAL, msg);                                            \
+            return;                                                                 \
         }                                                                           \
     } while (0)
 

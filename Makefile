@@ -8,8 +8,8 @@ TEST=tests
 TARGET=target
 DEPS=target/deps
 BINS=target/$(TEST)
-_LIBS=capstone unwind unwind-ptrace unwind-generic dwarf
-LIBS=$(foreach l,$(_LIBS),-l$l)
+_LIBS=capstone unwind unwind-ptrace unwind-generic dwarf elf
+LIBS=$(foreach l, $(_LIBS), -l$l)
 EXE=udb
 
 all: build test
