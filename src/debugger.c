@@ -255,11 +255,7 @@ void debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
     char path[BUFFER_LEN];
     snprintf(path, sizeof(path), "/proc/%u/maps", inferior_pid);
     FILE* fp = fopen(path, "r");
-<<<<<<< HEAD
-    UDB_assert(fp, "cannot read memory maps");
-=======
-    UDB_assert(fp, "failed to open memory maps file");
->>>>>>> refs/remotes/origin/main
+    UDB_assert(fp, "failed to read memory maps");
 
     char* buff = NULL;
     size_t buff_size = 0;
