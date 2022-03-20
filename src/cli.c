@@ -17,6 +17,7 @@ void completions(char const* buf, linenoiseCompletions* lc)
     switch (buf[0]) {
     case 'b':
         linenoiseAddCompletion(lc, "break ");
+        linenoiseAddCompletion(lc, "backtrace ");
         break;
     case 'c':
         linenoiseAddCompletion(lc, "cont ");
@@ -132,6 +133,7 @@ void command_help()
     printf("    %squit,      q        %s-- Quit the debugger.\n\n", BOLD, NORMAL);
     printf("    %spath,      p        %s-- Print the debugged file path.\n", BOLD, NORMAL);
     printf("    %smemmaps,   m        %s-- Print memory maps.\n", BOLD, NORMAL);
+    printf("    %sbacktrace, B        %s-- Backtrace the current stack.\n", BOLD, NORMAL);
     printf("    %smemory,    M        %s-- Print memory usage status.\n", BOLD, NORMAL);
     printf("    %sregisters, R        %s-- Print registers status.\n", BOLD, NORMAL);
     printf("    %skill,      k [sig]  %s-- Send signal to debugged program (SIGKILL if no signal is specified).\n", BOLD, NORMAL);
@@ -200,6 +202,9 @@ bool handle_command(char* prompt, config_t* cfg)
             return true;
         }
         command_break(cfg, value);
+    }
+    else if (!strcmp(cmd, "B") || !strcmp(cmd, "backtrace")) {
+        debugger_backtrace(cfg->pid);
     } else if (!strcmp(cmd, "c") || !strcmp(cmd, "cont")) {
         debugger_cont(cfg);
     } else if (!strcmp(cmd, "e") || !strcmp(cmd, "enable")) {

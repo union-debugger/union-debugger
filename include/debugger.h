@@ -39,3 +39,4 @@ void debugger_print_mem();
 void debugger_pids(config_t* cfg);
 void debugger_print_real_path(config_t* cfg);
 void debugger_print_mem_maps(config_t* cfg);
+void debugger_backtrace(pid_t inferior_pid);

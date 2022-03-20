@@ -15,6 +15,11 @@
 #include <signal.h>
 #include <wait.h>
 
+#include <libunwind.h>
+// #include <libunwind-x86_64.h>
+#include <libunwind-ptrace.h>
+#include <endian.h>
+
 #include "../include/breakpoint.h"
 #include "../include/debugger.h"
 #include "../include/utils.h"
@@ -232,6 +237,34 @@ void debugger_print_mem()
     printf("Peak virtual memory: %d\n", mem.virt_mem_peak);
 }
 
+
+/*
+* DEBUGGER BACKTRACE
+* using libunwind
+*/
+
+void debugger_backtrace(pid_t child) {
+    if (ptrace(PTRACE_ATTACH, child, NULL, NULL) == -1) {
+        perror("ptrace child");
+    }
+
+    unw_addr_space_t space = unw_create_addr_space(&_UPT_accessors, __LITTLE_ENDIAN);
+    void* target = _UPT_create(child);
+
+    unw_word_t ip, sp;
+    char funcname[128];
+    unw_word_t offset;
+    unw_cursor_t cursor;
+    unw_init_remote(&cursor, space, target);
+
+    while (unw_step(&cursor) > 0) {
+        unw_get_reg(&cursor, UNW_REG_IP, &ip);
+        unw_get_reg(&cursor, UNW_REG_SP, &sp);
+        unw_get_proc_name(&cursor, funcname, sizeof(funcname), &offset);
+
+        printf("ip = %lx, sp = %lx %s(+%lu)\n", (long)ip, (long)sp, funcname, offset);
+    }
+}
 
 /*
 ** Memory Maps

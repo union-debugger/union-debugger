@@ -8,12 +8,14 @@ TEST=tests
 TARGET=target
 DEPS=target/deps
 BINS=target/$(TEST)
+_LIBS=capstone unwind unwind-ptrace unwind-generic
+LIBS=$(foreach l, $(_LIBS), -l$l)
 EXE=udb
 
 build: $(DEPS)/linenoise.o $(DEPS)/vec.o $(DEPS)/main.o $(DEPS)/breakpoint.o $(DEPS)/config.o $(DEPS)/cli.o $(DEPS)/debugger.o $(DEPS)/utils.o
-	$(CC) $(CFLAGS) $(OFLAGS) $? -o $(EXE)
+	$(CC) $(CFLAGS) $(OFLAGS) $? -o $(EXE) $(LIBS)
 
-test: $(BINS)/hello $(BINS)/loop $(BINS)/mini_segfault
+test: $(BINS)/hello $(BINS)/loop $(BINS)/mini_segfault $(BINS)/trace
 
 $(DEPS)/%.o: $(SRC)/%.c
 	@mkdir -p $(DEPS)
@@ -25,7 +27,7 @@ $(DEPS)/%.o: $(EXT)/%.c
 
 $(BINS)/%: $(TEST)/%.c
 	@mkdir -p $(BINS)
-	$(CC) $(CFLAGS) $(OFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $(OFLAGS) $^ -o $@ $(LIBS)
 
 clean:
 	rm -Rf $(TARGET) $(EXE)
