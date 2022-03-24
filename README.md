@@ -11,6 +11,8 @@ the system:
 - `libelf`
 - `libdwarf`
 - `libunwind`
+- `capstone`
+- `glibc` v2.32 or higher
 
 Use the provided Makefile to build the projet:
 ```sh
