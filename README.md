@@ -50,12 +50,11 @@ We start by forking a child process that launches to program to debug. We can
 then run it, set breakpoints, inspect its memory, registers, etc...
 
 Quick summary of what we used:
-- `getopt()`/`getopt_long()` to parse the debugger's arguments;
-- `linenoise` to provide a lightweight command line tool that features auto-completion and history;
-- `fork()` to fork a child process that will execute the program to debug;
-- `ptrace()` to control the execution of the child process;
-- `vec` to store lists of breakpoints inside the program and the virtual memory maps;
-- 
+- `linenoise & getopt()` for a lightweight command line interface for autocompletion and history support, and for argument parsing;
+- `vec` for simplified and improved storage of debugger structures;
+- `fork() & ptrace()` manage the basic behavior of a child process that will run the program to be debugged;
+- `libdwarf & gelf` to read the program's debugging sections;
+- `libunwind` for backtrace support;
 
 **Did you know?**
 We used the `vec` library, which provides a generic, growable array type written
