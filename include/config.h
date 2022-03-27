@@ -4,9 +4,9 @@
 #include "types.h"
 
 enum state_t {
-    STATE_UNINIT,
-    STATE_INIT,
-    STATE_RUNNING,
+    DBG_UNINIT,
+    DBG_LOADED,
+    DBG_RUNNING,
 };
 
 typedef struct config_t {

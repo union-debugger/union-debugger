@@ -38,27 +38,17 @@ unw_cursor_t base_cursor;
 
 ssize_t debugger_run(config_t *cfg, char* const* argv)
 {
-    if (cfg->state == STATE_UNINIT) {
-        printf("%sinfo:%s debugger is uninitialized\n", MAGENTA, NORMAL);
-        return -1;
+    if (cfg->state == DBG_RUNNING) {
+        printf("Inferior process %d is currently being debugged.\n", cfg->pid);
+        bool ans = ask_user();
+        if (ans) {
+            i32 ret = debugger_kill(cfg, SIGKILL);
+            UDB_assert(ret <= 0, "failed to kill child process");
+        } else {
+            printf("Continuing debugging session.\n");
+            return 0;
+        }
     }
-
-    // if (cfg->state == STATE_RUNNING) {
-    //     printf("Inferior process %d is currently being debugged.", cfg->pid);
-    //     printf("Are you sure you want to restart? [y/n] ");
-    //     char ans[BUFFER_LEN];
-    //     scanf("%s", ans);
-    //     if (ans[0] == 'y' || ans[0] == 'Y') {
-    //         i32 ret = debugger_kill(cfg, SIGKILL);
-    //         UDB_assert(ret <= 0, "failed to kill child process");
-    //     } else if (ans[0] == 'n' || ans[0] == 'N') {
-    //         printf("Continuing debugging session\n");
-    //         return true;
-    //     } else {
-    //         printf("\n%s%serror:%s `%s` is not a valid answer\n", BOLD, RED, NORMAL, ans);
-    //         return true;
-    //     }
-    // }
 
     i32 status = 0;
     char* path = cfg->path;
@@ -76,6 +66,7 @@ ssize_t debugger_run(config_t *cfg, char* const* argv)
         abort();
     } else if (pid > 0) {
         cfg->pid = pid;
+        cfg->state = DBG_RUNNING;
         space = unw_create_addr_space(&_UPT_accessors, __LITTLE_ENDIAN);
         unwind_info = _UPT_create(pid);
 
@@ -94,7 +85,6 @@ ssize_t debugger_wait_signal(config_t* cfg)
 {
     i32 wstatus;
 
-// restart:
     if (waitpid(cfg->pid, &wstatus, 0) < 0) {
         return -1;
     }
@@ -102,14 +92,14 @@ ssize_t debugger_wait_signal(config_t* cfg)
 
     if (WIFEXITED(wstatus)) {
         printf("Inferior process %d terminated normally (code %d).\n", cfg->pid, WEXITSTATUS(wstatus));
-        cfg->state = STATE_INIT;
+        cfg->state = DBG_LOADED;
     } else if (WIFSIGNALED(wstatus)) {
         i32 signal = WTERMSIG(wstatus);
-        printf("Inferior process %d terminated with status %d (%s)\n",
+        printf("Inferior process %d terminated with status %d (%s).\n",
                cfg->pid,
                signal,
                sigdescr_np(signal));
-        cfg->state = STATE_INIT;
+        cfg->state = DBG_LOADED;
     } else if (WIFSTOPPED(wstatus)) {
         // Initialize remote stack unwinding
         unw_init_remote(&base_cursor, space, unwind_info);
@@ -129,18 +119,20 @@ ssize_t debugger_wait_signal(config_t* cfg)
                 u64 address = registers.rip - 1;
                 breakpoint_t const* b = breakpoint_get(cfg->breakpoints, address);
                 if (b) {
-                    printf("Inferior stopped at breakpoint (address: %s0x%zx%s)\n",
+                    printf("Inferior stopped at breakpoint (address: %s0x%zx%s).\n",
                            YELLOW, b->address, NORMAL);
                 } else {
-                    debugger_cont(cfg);
+                    printf("Inferior process %d stopped at entry SIGTRAP.\n", cfg->pid);
+                    printf("Type `cont` to resume execution.\n");
                 }
                 break;
             case SIGSEGV:
             case SIGSTOP:
                 printf("Inferior process %d stopped.\n", cfg->pid);
-                printf("Name = '%s', stopped by signal SIG%s (%s)\n",
-                       cfg->path, sigabbrev_np(stopsig), sigdescr_np(stopsig));
-                debugger_backtrace(cfg->pid);
+                printf("Name = %s'%s'%s, stopped by signal %sSIG%s (%s)%s at %s0x%llx%s.\n",
+                       BOLD, cfg->path, NORMAL,
+                       RED, sigabbrev_np(stopsig), sigdescr_np(stopsig), NORMAL,
+                       YELLOW, registers.rip, NORMAL);
                 break;
             case SIGTSTP:
             case SIGTTIN:
@@ -157,8 +149,8 @@ ssize_t debugger_wait_signal(config_t* cfg)
 
 ssize_t debugger_cont(config_t* cfg)
 {
-    if (cfg->state != STATE_RUNNING) {
-        printf("%sinfo:%s debugger is not running\n", MAGENTA, NORMAL);
+    if (cfg->state != DBG_RUNNING) {
+        printf("%s%sinfo:%s no target executable is currently running.\n", BOLD, CYAN, NORMAL);
         return -1;
     }
 
@@ -178,7 +170,11 @@ ssize_t debugger_cont(config_t* cfg)
 
 void debugger_pids(config_t* cfg)
 {
-    printf("Child PID:  %s%d%s\n", BOLD, cfg->pid, NORMAL);
+    if (cfg->state != DBG_RUNNING) {
+        printf("Child PID:  %s%s%s\n", BOLD, "None", NORMAL);
+    } else {
+        printf("Child PID:  %s%d%s\n", BOLD, cfg->pid, NORMAL);
+    }
     printf("Child PPID: %s%d%s\n", BOLD, getpid(), NORMAL);
 }
 
@@ -190,6 +186,11 @@ void debugger_get_regs(pid_t pid, struct user_regs_struct* regs)
 
 void debugger_print_regs(config_t* cfg)
 {
+    if (cfg->state != DBG_RUNNING) {
+        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
+        return;
+    }
+
     struct user_regs_struct regs;
     debugger_get_regs(cfg->pid, &regs);
 
@@ -477,11 +478,14 @@ void debugger_get_libraries(char* path, vec_t* libraries)
 }
 
 
-void debugger_print_libraries(config_t* cfg) {
+void debugger_print_libraries(config_t* cfg)
+{
+    if (cfg->state != DBG_RUNNING) {
+        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
+        return;
+    }
+
     vec_t* libraries = vec_with_capacity(1, sizeof(library));
-
-    UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
-
     char real_path[BUFFER_LEN];
     debugger_get_real_path(cfg->pid, real_path);
     
@@ -498,10 +502,12 @@ void debugger_print_libraries(config_t* cfg) {
 
 void debugger_print_shared_libraries(config_t* cfg)
 {
+    if (cfg->state != DBG_RUNNING) {
+        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
+        return;
+    }
+
     vec_t* libraries = vec_with_capacity(1, sizeof(library));
-
-    UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
-
     char real_path[BUFFER_LEN];
     debugger_get_real_path(cfg->pid, real_path);
 
@@ -513,10 +519,6 @@ void debugger_print_shared_libraries(config_t* cfg)
             printf("0x%010lx (%s) \t \t[%s]\n", lib->addr, lib->strtype, lib->name);
     }
 }
-
-
-
-
 
 /*
 * Libdwarf
@@ -560,7 +562,10 @@ int get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr)
 
 void debugger_print_debug_strings(config_t* cfg)
 {
-    UDB_user_assert(cfg->state == STATE_RUNNING, "\033[1;31merror:\033[0m debugger is not running");
+    if (cfg->state != DBG_RUNNING) {
+        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
+        return;
+    }
 
     vec_t* dstr = vec_with_capacity(1, sizeof(debug_str));
 
@@ -600,8 +605,13 @@ void debugger_print_debug_strings(config_t* cfg)
 * using libunwind
 */
 
-void debugger_backtrace()
+void debugger_backtrace(int dbg_state)
 {
+    if (dbg_state != DBG_RUNNING) {
+        printf("No backtrace.\n");
+        printf("%s%sinfo:%s no target executable is currently running.\n", BOLD, CYAN, NORMAL);
+        return;
+    }
     unw_word_t ip, sp, offset;
     unw_cursor_t cursor = base_cursor;
     char funcname[128];
@@ -610,9 +620,9 @@ void debugger_backtrace()
         unw_get_reg(&cursor, UNW_REG_IP, &ip);
         unw_get_reg(&cursor, UNW_REG_SP, &sp);
         unw_get_proc_name(&cursor, funcname, sizeof(funcname), &offset);
-        printf("* frame %s#%zu%s\n  --> rip = %s0x%lx%s, rsp = %s0x%lx%s at %s%s%s(+%lu)\n",
+        printf("* frame %s#%zu%s --> %s0x%lx%s, rsp = %s0x%lx%s at %s%s%s (+%lu)\n",
                GREEN, frame, NORMAL,
-               YELLOW, ip, NORMAL, YELLOW, sp, NORMAL, CYAN, funcname, NORMAL, offset);
+               YELLOW, ip, NORMAL, YELLOW, sp, NORMAL, BLUE, funcname, NORMAL, offset);
         frame++;
     }
 }
@@ -676,7 +686,9 @@ int debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
         map.device.minor = strtoul(buff_dev_minor, NULL, 10);
         map.inode = atoi(buff_inode);
 
-        strcpy(map.path, buff_path);
+        if (buff_path) {
+            strcpy(map.path, buff_path);
+        }
 
         VEC_MUT(p_mmaps, p_mem_maps, p_mmaps->capacity-1, map);
         int ret = vec_resize(p_mmaps, p_mmaps->capacity+1);
@@ -687,10 +699,13 @@ int debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
     return 0;
 }
 
-
 void debugger_print_mem_maps(config_t* cfg)
 {
-    UDB_user_assert(cfg->state == STATE_RUNNING, "\033[1;31merror:\033[0m debugger is not running");
+    if (cfg->state != DBG_RUNNING) {
+        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
+        return;
+    }
+
     vec_t* p_mmaps = vec_with_capacity(1, sizeof(p_mem_maps));
 
     debugger_get_mem_maps(p_mmaps, cfg->pid);
@@ -709,15 +724,24 @@ void debugger_get_real_path(pid_t pid, char* real_path)
     UDB_assert(ret >= 0, "failed to read real path");
 }
 
-void debugger_print_real_path(config_t* cfg) {
+void debugger_print_real_path(config_t* cfg)
+{
     char real_path[BUFFER_LEN];
-    UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
+    if (cfg->state != DBG_RUNNING) {
+        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
+        return;
+    }
     debugger_get_real_path(cfg->pid, real_path);
-    printf("Real path: %s%s%s\n", BOLD, real_path, NORMAL);
+    printf("Real path: %s%s%s.\n", BOLD, real_path, NORMAL);
 }
 
 ssize_t debugger_kill(config_t* cfg, i32 const signal)
 {
+    if (cfg->state != DBG_RUNNING) {
+        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
+        return -1;
+    }
+
     i32 ret = kill(cfg->pid, signal);
     if (ret < 0) {
 #if __GLIBC__ >= 2 && __GLIBC_MINOR__ >= 32
@@ -729,9 +753,10 @@ ssize_t debugger_kill(config_t* cfg, i32 const signal)
 #endif
     }
     printf("Sent signal SIG%s to process %d.\n", sigabbrev_np(signal), cfg->pid);
-    cfg->state = STATE_INIT;
+    cfg->state = DBG_LOADED;
+    cfg->pid = 0;
 
-    // Zombie Child Assertion
+    // Zombie child assertion
     ret = waitpid(cfg->pid, NULL, WNOHANG);
     kill(getpid(), SIGCHLD);
     UDB_assert(ret >= 0, "child process is a zombie");

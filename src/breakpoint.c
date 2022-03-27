@@ -47,7 +47,7 @@ i64 breakpoint_write_bin(pid_t const pid, size_t const address, u64 const data)
 static
 i32 breakpoint_enable_address(config_t* cfg, size_t const address)
 {
-    if (cfg->state != STATE_RUNNING) {
+    if (cfg->state != DBG_RUNNING) {
         return -1;
     }
 
@@ -71,7 +71,7 @@ i32 breakpoint_enable_address(config_t* cfg, size_t const address)
 static
 i32 breakpoint_disable_address(config_t* cfg, size_t const address)
 {
-    if (cfg->state != STATE_RUNNING) {
+    if (cfg->state != DBG_RUNNING) {
         return -1;
     }
 
@@ -92,19 +92,19 @@ i32 breakpoint_disable_address(config_t* cfg, size_t const address)
 
 i32 breakpoint_new(config_t* cfg, size_t const address)
 {
-    if (cfg->state == STATE_UNINIT) {
-        printf("%s%serror:%s no target executable loaded\n", BOLD, RED, NORMAL);
+    if (cfg->state == DBG_UNINIT) {
+        printf("%s%serror:%s no target executable currently set.\n", BOLD, RED, NORMAL);
         return -1;
     }
 
     if (breakpoint_get(cfg->breakpoints, address) != NULL) {
-        printf("%sinfo:%s a breakpoint at address 0x%zx already exists\n",
-               MAGENTA, NORMAL, address);
+        printf("%s%serror:%s a breakpoint at address 0x%zx already exists.\n",
+               BOLD, RED, NORMAL, address);
         return -1;
     }
 
     i64 original_data = 0;
-    if (cfg->state == STATE_RUNNING) {
+    if (cfg->state == DBG_RUNNING) {
         original_data = breakpoint_write_bin(cfg->pid, address, INT3);
         if (original_data < 0) {
             return -1;
@@ -114,7 +114,7 @@ i32 breakpoint_new(config_t* cfg, size_t const address)
     breakpoint_t self = {
         .address = address,
         .original_data = (u64)original_data,
-        .state = cfg->state == STATE_RUNNING ? BRK_ENABLED : BRK_UNINIT,
+        .state = cfg->state == DBG_RUNNING ? BRK_ENABLED : BRK_UNINIT,
     };
 
     i32 ret = vec_push(cfg->breakpoints, &self);
@@ -122,7 +122,7 @@ i32 breakpoint_new(config_t* cfg, size_t const address)
         return -1;
     }
 
-    printf("%sinfo:%s breakpoint #%zu set at address 0x%zx\n", MAGENTA, NORMAL, cfg->breakpoints->len, address);
+    printf("Breakpoint #%zu set at address 0x%zx.\n", cfg->breakpoints->len, address);
     return ret;
 }
 
@@ -155,7 +155,7 @@ i32 breakpoint_setup(config_t* cfg)
 
 i32 breakpoint_enable_id(config_t* cfg, size_t const id)
 {
-    if (cfg->state != STATE_RUNNING) {
+    if (cfg->state != DBG_RUNNING) {
         return -1;
     }
 
@@ -174,7 +174,7 @@ i32 breakpoint_enable_id(config_t* cfg, size_t const id)
 
 i32 breakpoint_disable_id(config_t* cfg, size_t const id)
 {
-    if (cfg->state != STATE_RUNNING) {
+    if (cfg->state != DBG_RUNNING) {
         return -1;
     }
 
@@ -191,14 +191,14 @@ i32 breakpoint_disable_id(config_t* cfg, size_t const id)
 
 i32 breakpoint_remove_address(config_t* cfg, size_t const address)
 {
-    if (cfg->state == STATE_UNINIT) {
-        printf("%sinfo:%s debugger has not been initialized yet\n", MAGENTA, NORMAL);
+    if (cfg->state == DBG_UNINIT) {
+        printf("%s%serror:%s no target executable currently set.\n", BOLD, RED, NORMAL);
         return -1;
     }
 
     ssize_t id = breakpoint_search(cfg->breakpoints, address);
     if (id < 0) {
-        printf("%swarning:%s no breakpoint set at address 0x%16zx\n", YELLOW, NORMAL, address); 
+        printf("%swarning:%s no breakpoint set at address 0x%16zx.\n", YELLOW, NORMAL, address); 
         return -1;
     }
 
@@ -207,13 +207,13 @@ i32 breakpoint_remove_address(config_t* cfg, size_t const address)
 
 i32 breakpoint_remove_id(config_t* cfg, size_t const id)
 {
-    if (cfg->state == STATE_UNINIT) {
-        printf("%sinfo:%s debugger has not been initialized yet\n", MAGENTA, NORMAL);
+    if (cfg->state == DBG_UNINIT) {
+        printf("%s%serror:%s no target executable currently set.\n", BOLD, RED, NORMAL);
         return -1;
     }
 
     if (id <= cfg->breakpoints->len) {
-        printf("%swarning:%s no breakpoint of ID %zu\n", YELLOW, NORMAL, id); 
+        printf("%swarning:%s no breakpoint of ID %zu.\n", YELLOW, NORMAL, id); 
         return -1;
     }
 
@@ -230,7 +230,7 @@ i32 breakpoint_step(config_t* cfg)
     u64 address = registers.rip - 1;
     breakpoint_t const* b = breakpoint_get(cfg->breakpoints, address);
     if (!b) {
-        return 0;
+        return 1;
     }
 
     // Restore PC address
@@ -256,13 +256,13 @@ i32 breakpoint_step(config_t* cfg)
 void breakpoint_list(config_t const* cfg)
 {
     if (vec_is_empty(cfg->breakpoints)) {
-        printf("No breakpoints set\n");
+        printf("No breakpoints currently set.\n");
         return;
     }
 
     for (size_t i = 0; i < cfg->breakpoints->len; i++) {
         breakpoint_t const* b = vec_peek(cfg->breakpoints, i);
-        printf("Breakpoint #%zu at 0x%zx %s\n", i + 1, b->address,
+        printf("Breakpoint #%zu at %s0x%zx%s %s\n", i + 1, YELLOW, b->address, NORMAL,
                b->state != BRK_DISABLED ? "\033[32m(enabled)\033[0m" : "\033[31m(disabled)\033[0m");
     }
 }
