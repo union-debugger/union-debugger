@@ -93,3 +93,18 @@ size_t parse_value(char const* str)
 
     return addr;
 }
+
+bool ask_user()
+{
+    printf("Are you sure? [y/n] ");
+    char ans[BUFFER_LEN];
+    scanf("%s", ans);
+    if (ans[0] == 'y' || ans[0] == 'Y') {
+        return true;
+    } else if (ans[0] == 'n' || ans[0] == 'N') {
+        return false;
+    } else {
+        printf("%s%serror:%s `%s` is not a valid answer.\n", BOLD, RED, NORMAL, ans);
+        return false;
+    }
+}
