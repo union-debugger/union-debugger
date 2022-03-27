@@ -1,5 +1,6 @@
 CC=gcc
 CFLAGS=-Wall -Wextra -g3 -Wno-return-type
+CTFLAGS=-w -Wextra -g3 # Compiler flags for tests only.
 OFLAGS=-march=native -mtune=native -O2 -Os
 
 SRC=src
@@ -10,6 +11,7 @@ DEPS=target/deps
 BINS=target/$(TEST)
 _LIBS=capstone unwind unwind-ptrace unwind-generic dwarf elf
 LIBS=$(foreach l, $(_LIBS), -l$l)
+CTLIBS=-lpthread
 EXE=udb
 
 all: build test
@@ -29,7 +31,7 @@ $(DEPS)/%.o: $(EXT)/%.c
 
 $(BINS)/%: $(TEST)/%.c
 	@mkdir -p $(BINS)
-	$(CC) $(CFLAGS) $(OFLAGS) $^ -o $@ $(LIBS)
+	$(CC) $(CTFLAGS) $(OFLAGS) $^ -o $@ $(CTLIBS)
 
 clean:
 	rm -Rf $(TARGET) $(EXE)
