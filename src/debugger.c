@@ -1,43 +1,40 @@
 #define _GNU_SOURCE
 
+#include <assert.h>
+#include <endian.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <gelf.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <unistd.h>
-#include <fcntl.h>
+#include <wait.h>
 
 #include <sys/personality.h>
 #include <sys/user.h>
 #include <sys/wait.h>
-
 #include <sys/ptrace.h>
 #include <linux/ptrace.h>
-#include <signal.h>
-#include <wait.h>
 
 #include <libunwind.h>
-// #include <libunwind-x86_64.h>
+#include <libunwind-x86_64.h>
 #include <libunwind-ptrace.h>
-#include <endian.h>
 
 #include "../ext/dwarf.h"
 #include "../ext/libdwarf.h"
-
-#include <gelf.h>
+#include "../ext/vec.h"
 
 #include "../include/breakpoint.h"
 #include "../include/debugger.h"
 #include "../include/utils.h"
 #include "../include/types.h"
 #include "../include/config.h"
-#include "../ext/vec.h"
 
-#include <assert.h>
-#include <fcntl.h>
-#include <gelf.h>
-#include <stdio.h>
-#include <unistd.h>
+unw_addr_space_t space;
+void* unwind_info;
+unw_cursor_t base_cursor;
 
 ssize_t debugger_run(config_t *cfg, char* const* argv)
 {
@@ -79,7 +76,9 @@ ssize_t debugger_run(config_t *cfg, char* const* argv)
         abort();
     } else if (pid > 0) {
         cfg->pid = pid;
-        // config_print(cfg);
+        space = unw_create_addr_space(&_UPT_accessors, __LITTLE_ENDIAN);
+        unwind_info = _UPT_create(pid);
+
         status = debugger_wait_signal(cfg);
         if (ptrace(PTRACE_SETOPTIONS, cfg->pid, NULL, PTRACE_O_EXITKILL) < 0) {
             return -1;
@@ -99,48 +98,55 @@ restart:
     if (waitpid(cfg->pid, &wstatus, 0) < 0) {
         return -1;
     }
+    breakpoint_setup(cfg);
 
     if (WIFEXITED(wstatus)) {
         printf("Inferior process %d terminated normally (code %d).\n", cfg->pid, WEXITSTATUS(wstatus));
         cfg->state = STATE_INIT;
     } else if (WIFSIGNALED(wstatus)) {
-        siginfo_t siginfo;
-        if (ptrace(PTRACE_GETSIGINFO, cfg->pid, NULL, &siginfo) < 0 && errno == EINVAL) {
-            goto restart;
-        }
-        printf("Inferior process %d stopped at address %p.\n",
-               cfg->pid, siginfo.si_addr);
         i32 signal = WTERMSIG(wstatus);
-        printf("Inferior process %d terminated with signal SIG%s: %s\n",
+        printf("Inferior process %d terminated with status %d (%s)\n",
                cfg->pid,
-               sigabbrev_np(signal),
+               signal,
                sigdescr_np(signal));
         cfg->state = STATE_INIT;
     } else if (WIFSTOPPED(wstatus)) {
-        i32 stopsig = WSTOPSIG(wstatus);
-        if (stopsig == SIGTRAP) {
-            // Breakpoint and execvp
-            struct user_regs_struct registers;
-            if (ptrace(PTRACE_GETREGS, cfg->pid, NULL, &registers) < 0) {
-                return -1;
-            }
+        // Initialize remote stack unwinding
+        unw_init_remote(&base_cursor, space, unwind_info);
 
-            u64 address = registers.rip - 1;
-            breakpoint_t* b = breakpoint_peek(cfg->breakpoints, address);
-            if (b) {
-                printf("Stopped at breakpoint (address: %s0x%zx%s)\n", YELLOW, b->address, NORMAL);
-            } else {
-                printf("Program stopped at SIGTRAP.\nNow is a good time to set up breakpoints! Just type %s`cont`%s if you want to resume execution.\n", BOLD, NORMAL);
-            }
-        } else {
-            if (stopsig == SIGSTOP || stopsig == SIGTSTP || stopsig == SIGTTIN || stopsig == SIGTTOU) {
-                siginfo_t siginfo;
-                if (ptrace(PTRACE_GETSIGINFO, cfg->pid, NULL, &siginfo) < 0 && errno == EINVAL) {
-                    goto restart;
+        siginfo_t siginfo;
+        struct user_regs_struct registers;
+        if ((ptrace(PTRACE_GETSIGINFO, cfg->pid, NULL, &siginfo) < 0 ||
+            ptrace(PTRACE_GETREGS, cfg->pid, NULL, &registers) < 0) &&
+            errno == EINVAL)
+        {
+            return -1;
+        }
+
+        i32 stopsig = WSTOPSIG(wstatus);
+        switch (stopsig) {
+            case SIGTRAP:
+                u64 address = registers.rip - 1;
+                breakpoint_t const* b = breakpoint_get(cfg->breakpoints, address);
+                if (b) {
+                    printf("Inferior stopped at breakpoint (address: %s0x%zx%s)\n",
+                           YELLOW, b->address, NORMAL);
+                } else {
+                    debugger_cont(cfg);
                 }
-            }
-            ptrace(PTRACE_CONT, cfg->pid, NULL, stopsig);
-            goto restart;
+                break;
+            case SIGSEGV:
+            case SIGSTOP:
+                printf("Inferior process %d stopped.\n", cfg->pid);
+                printf("Name = '%s', stopped by signal SIG%s (%s)\n",
+                       cfg->path, sigabbrev_np(stopsig), sigdescr_np(stopsig));
+                debugger_backtrace(cfg->pid);
+                break;
+            case SIGTSTP:
+            case SIGTTIN:
+            case SIGTTOU:
+                break;
+            default: break;
         }
     } else {
         return -1;
@@ -416,8 +422,8 @@ char* strSHT(Elf64_Word SHT_value) {
     }
 }
 
-void debugger_get_libraries(char* path, vec_t* libraries) {
-
+void debugger_get_libraries(char* path, vec_t* libraries)
+{
     UDB_error(elf_version(EV_CURRENT) != EV_NONE, "Lib pb");
 
     int fd = open(path, O_RDONLY, 0);
@@ -425,7 +431,6 @@ void debugger_get_libraries(char* path, vec_t* libraries) {
 
     Elf* elf = elf_begin(fd, ELF_C_READ, NULL);
     UDB_error(elf != NULL, "Failed to open elf");
-
     UDB_error(elf_kind(elf) == ELF_K_ELF, "Provided file does not contain ELF data"); //  Verify it's an ELF file.
 
     Elf_Scn* scn = NULL; // Elf descriptor
@@ -491,7 +496,8 @@ void debugger_print_libraries(config_t* cfg) {
     }
 }
 
-void debugger_print_shared_libraries(config_t* cfg) {
+void debugger_print_shared_libraries(config_t* cfg)
+{
     vec_t* libraries = vec_with_capacity(1, sizeof(library));
 
     UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
@@ -517,7 +523,8 @@ void debugger_print_shared_libraries(config_t* cfg) {
 * Reading the .debug_str
 */
 
-int get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr) {
+int get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr)
+{
     Dwarf_Off offset;
     Dwarf_Signed len;
     char* str;
@@ -550,7 +557,8 @@ int get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr) {
     return 0;
 }
 
-void debugger_print_debug_strings(config_t* cfg) {
+void debugger_print_debug_strings(config_t* cfg)
+{
     UDB_user_assert(cfg->state == STATE_RUNNING, "\033[1;31merror:\033[0m debugger is not running");
 
     vec_t* dstr = vec_with_capacity(1, sizeof(debug_str));
@@ -593,21 +601,14 @@ void debugger_print_debug_strings(config_t* cfg) {
 
 void debugger_backtrace(pid_t child)
 {
-    unw_addr_space_t space = unw_create_addr_space(&_UPT_accessors, __LITTLE_ENDIAN);
-    void* target = _UPT_create(child);
-
-    unw_word_t ip, sp;
+    unw_word_t ip, sp, offset;
+    unw_cursor_t cursor = base_cursor;
     char funcname[128];
-    unw_word_t offset;
-    unw_cursor_t cursor;
-    unw_init_remote(&cursor, space, target);
-
     size_t frame = 0;
     while (unw_step(&cursor) > 0) {
         unw_get_reg(&cursor, UNW_REG_IP, &ip);
         unw_get_reg(&cursor, UNW_REG_SP, &sp);
         unw_get_proc_name(&cursor, funcname, sizeof(funcname), &offset);
-
         printf("* frame %s#%zu%s\n  --> rip = %s0x%lx%s, rsp = %s0x%lx%s at %s%s%s(+%lu)\n",
                GREEN, frame, NORMAL,
                YELLOW, ip, NORMAL, YELLOW, sp, NORMAL, CYAN, funcname, NORMAL, offset);

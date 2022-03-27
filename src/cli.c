@@ -12,6 +12,9 @@
 #include "../include/debugger.h"
 #include "../include/utils.h"
 
+#define ENABLE 1
+#define DISABLE 0
+
 void completions(char const* buf, linenoiseCompletions* lc)
 {
     switch (buf[0]) {
@@ -59,8 +62,8 @@ void completions(char const* buf, linenoiseCompletions* lc)
         linenoiseAddCompletion(lc, "registers ");
         break;
     case 's':
-        linenoiseAddCompletion(lc, "step ");
         linenoiseAddCompletion(lc, "shared_libs ");
+        linenoiseAddCompletion(lc, "step ");
         break;
     default:
         return;
@@ -73,6 +76,7 @@ void command_break(config_t* cfg, char* value)
         printf("%s%serror:%s debugger has not been initialized yet\n", BOLD, RED, NORMAL);
         return;
     }
+
     size_t addr = parse_value(value);
     if (addr == SIZE_MAX) {
         printf("%s%serror:%s failed to parse value\n", BOLD, RED, NORMAL);
@@ -85,23 +89,47 @@ void command_break(config_t* cfg, char* value)
     }
 }
 
+static
+void switch_breakpoint(config_t* cfg, size_t const id, int const mode)
+{
+    if (mode == ENABLE) {
+        i8 ret = breakpoint_enable_id(cfg, id);
+        if (ret < 0) {
+            printf("%s%serror:%s failed to enable breakpoint #%zu\n", BOLD, RED, NORMAL, id);
+        }
+        printf("Enabled breakpoint #%zu\n", id + 1);
+    } else {
+        i8 ret = breakpoint_disable_id(cfg, id);
+        if (ret < 0) {
+            printf("%s%serror:%s failed to disable breakpoint #%zu\n", BOLD, RED, NORMAL, id);
+        }
+        printf("Disabled breakpoint #%zu\n", id + 1);
+    }
+}
+
 void command_enable(config_t* cfg, char* value)
 {
     if (cfg->state == STATE_UNINIT) {
         printf("%s%serror:%s debugger has not been initialized yet\n", BOLD, RED, NORMAL);
         return;
     }
-    size_t id = parse_value(value);
-    if (id == SIZE_MAX) {
-        printf("%s%serror:%s failed to parse value\n", BOLD, RED, NORMAL);
-        return;
+
+    size_t id = SIZE_MAX - 1;
+    if (value) {
+        id = parse_value(value);
+        if (id == SIZE_MAX) {
+            printf("%s%serror:%s failed to parse value\n", BOLD, RED, NORMAL);
+            return;
+        }
     }
 
-    i8 ret = breakpoint_enable_id(cfg, id - 1);
-    if (ret < 0) {
-        printf("%s%serror:%s failed to enable breakpoint #%zu\n", BOLD, RED, NORMAL, id);
+    if (id != SIZE_MAX - 1) {
+        switch_breakpoint(cfg, id - 1, ENABLE);
+    } else {
+        for (size_t i = 0; i < cfg->breakpoints->len; i++) {
+            switch_breakpoint(cfg, i, ENABLE);
+        }
     }
-    printf("Enabled breakpoint #%zu\n", id);
 }
 
 void command_disable(config_t* cfg, char* value)
@@ -110,17 +138,23 @@ void command_disable(config_t* cfg, char* value)
         printf("%s%serror:%s debugger has not been initialized yet\n", BOLD, RED, NORMAL);
         return;
     }
-    size_t id = parse_value(value);
-    if (id == SIZE_MAX) {
-        printf("%s%serror:%s failed to parse value\n", BOLD, RED, NORMAL);
-        return;
+
+    size_t id = SIZE_MAX - 1;
+    if (value) {
+        id = parse_value(value);
+        if (id == SIZE_MAX) {
+            printf("%s%serror:%s failed to parse value\n", BOLD, RED, NORMAL);
+            return;
+        }
     }
 
-    i8 ret = breakpoint_disable_id(cfg, id - 1);
-    if (ret < 0) {
-        printf("%s%serror:%s failed to disable breakpoint #%zu\n", BOLD, RED, NORMAL, id);
+    if (id != SIZE_MAX - 1) {
+        switch_breakpoint(cfg, id - 1, DISABLE);
+    } else {
+        for (size_t i = 0; i < cfg->breakpoints->len; i++) {
+            switch_breakpoint(cfg, i, DISABLE);
+        }
     }
-    printf("Disabled breakpoint #%zu\n", id);
 }
 
 void command_help()
@@ -129,7 +163,7 @@ void command_help()
     printf("    %sload,         l <path> %s-- Load debugger with the given program's path.\n", BOLD, NORMAL);
     printf("    %sinfo,         i        %s-- Print current debugger configuration.\n", BOLD, NORMAL);
     printf("    %srun,          r [args] %s-- Launch the program in the debugger (with optional arguments).\n", BOLD, NORMAL);
-    printf("    %sbreak,        b <addr> %s-- Set a breakpoint at the given address.\n", BOLD, NORMAL);
+    printf("    %sbreak,        b <addr> %s-- Set a breakpoint at the given address (hexadecimal format).\n", BOLD, NORMAL);
     printf("    %senable,       e [id]   %s-- Enable the breakpoint with the given ID (enables all breakpoints if no ID is specified.\n", BOLD, NORMAL);
     printf("    %sdisable,      d [id]   %s-- Disable the breakpoint with the given ID (disables all breakpoints if no ID is specified.\n", BOLD, NORMAL);
     printf("    %slist,         L        %s-- List breakpoints.\n", BOLD, NORMAL);
@@ -217,17 +251,17 @@ bool handle_command(char* prompt, config_t* cfg)
         debugger_cont(cfg);
     } else if (!strcmp(cmd, "e") || !strcmp(cmd, "enable")) {
         char* value = strtok(NULL, " ");
-        if (!value) {
-            printf("%s%serror:%s command `enable` takes at least one argument\n", BOLD, RED, NORMAL);
-            return true;
-        }
+        // if (!value) {
+        //     printf("%s%serror:%s command `enable` takes at least one argument\n", BOLD, RED, NORMAL);
+        //     return true;
+        // }
         command_enable(cfg, value);
     } else if (!strcmp(cmd, "d") || !strcmp(cmd, "disable")) {
         char* value = strtok(NULL, " ");
-        if (!value) {
-            printf("%s%serror:%s command `enable` takes at least one argument\n", BOLD, RED, NORMAL);
-            return true;
-        }
+        // if (!value) {
+        //     printf("%s%serror:%s command `disable` takes at least one argument\n", BOLD, RED, NORMAL);
+        //     return true;
+        // }
         command_disable(cfg, value);
     } else if (!strcmp(cmd, "h") || !strcmp(cmd, "help")) {
         command_help();
