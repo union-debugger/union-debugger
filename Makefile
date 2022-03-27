@@ -17,7 +17,7 @@ all: build test
 build: $(DEPS)/linenoise.o $(DEPS)/vec.o $(DEPS)/main.o $(DEPS)/breakpoint.o $(DEPS)/config.o $(DEPS)/cli.o $(DEPS)/debugger.o $(DEPS)/utils.o
 	$(CC) $(CFLAGS) $(OFLAGS) $? -o $(EXE) $(LIBS)
 
-test: $(BINS)/hello $(BINS)/loop $(BINS)/mini_segfault $(BINS)/trace
+test: $(BINS)/hello $(BINS)/loop $(BINS)/mini_segfault $(BINS)/trace $(BINS)/dlk $(BINS)/mem $(BINS)/rogue $(BINS)/rogue_sp $(BINS)/stack $(BINS)/voidp
 
 $(DEPS)/%.o: $(SRC)/%.c
 	@mkdir -p $(DEPS)
