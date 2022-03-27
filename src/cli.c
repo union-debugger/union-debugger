@@ -60,6 +60,7 @@ void completions(char const* buf, linenoiseCompletions* lc)
     case 'r':
         linenoiseAddCompletion(lc, "run ");
         linenoiseAddCompletion(lc, "registers ");
+        linenoiseAddCompletion(lc, "remove ");
         break;
     case 's':
         linenoiseAddCompletion(lc, "shared_libs ");
