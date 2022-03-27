@@ -8,6 +8,9 @@
 
 #include <string.h>
 
+// #pragma GCC diagnostic push
+// #pragma GCC diagnostic ignored "-Wreturn-type"
+
 #define UDB_assert(expr, msg)                                                       \
     do {                                                                            \
         if (!(expr)) {                                                              \
@@ -25,7 +28,7 @@
                 BOLD, RED, NORMAL, msg);                                            \
             return;                                                                 \
         }                                                                           \
-    } while (0)
+    } while (0) 
 
 #define UDB_user_assert(expr, msg)                                                  \
     do {                                                                            \
@@ -33,7 +36,7 @@
             fprintf(stderr, "%s\n", msg);                                           \
             return;                                                                 \
         }                                                                           \
-    } while(0)                                                                      \
+    } while (0)
 
 #define UDB_debug(value, fmt)                                                       \
     do {                                                                            \
@@ -47,6 +50,8 @@
                     #value, value);                                                 \
         }                                                                           \
     } while (0)
+
+// #pragma GCC diagnostic pop
 
 void help();
 char* strstrip(char* str);

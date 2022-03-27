@@ -94,7 +94,7 @@ ssize_t debugger_wait_signal(config_t* cfg)
 {
     i32 wstatus;
 
-restart:
+// restart:
     if (waitpid(cfg->pid, &wstatus, 0) < 0) {
         return -1;
     }
@@ -534,7 +534,7 @@ int get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr)
     int i = 0;
     debug_str dst;
 
-    while ((ret = dwarf_get_str(dbg, offset, &str, &len, &err)) == DW_DLV_OK) {
+    while ((ret = dwarf_get_str(dbg, offset, &str, &len, err)) == DW_DLV_OK) {
         vec_push(dstr, &dst);
         offset += len + 1;
 
@@ -549,9 +549,10 @@ int get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr)
         i++;
     }
     if (i == 0) {
-        UDB_error(!(ret == DW_DLV_NO_ENTRY), "This executable does not contains debug info");
-        UDB_error(!(ret == DW_DLV_ERROR), dwarf_errmsg(err));
     }
+    UDB_error(!(ret == DW_DLV_NO_ENTRY), "This executable does not contains debug info");
+    UDB_error((ret == DW_DLV_ERROR), dwarf_errmsg(*err));
+    UDB_error(!(ret == DW_DLV_ERROR), dwarf_errmsg(*err));
     // DW_DLV_NO_ENTRY
     // DW_DLV_ERROR
     return 0;
@@ -583,7 +584,7 @@ void debugger_print_debug_strings(config_t* cfg)
 
     UDB_error(!(res == DW_DLV_NO_ENTRY), "This executable does not contain any debug info");
 
-    get_debug_strings(ddbg.dbg, ddbg.error, dstr);
+    get_debug_strings(ddbg.dbg, &ddbg.error, dstr);
 
     for (size_t i = 0; i < dstr->len; i++) {
         debug_str* dst = (debug_str*)vec_peek(dstr, i);
@@ -599,7 +600,7 @@ void debugger_print_debug_strings(config_t* cfg)
 * using libunwind
 */
 
-void debugger_backtrace(pid_t child)
+void debugger_backtrace()
 {
     unw_word_t ip, sp, offset;
     unw_cursor_t cursor = base_cursor;

@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -g3
+CFLAGS=-Wall -Wextra -g3 -Wno-return-type
 OFLAGS=-march=native -mtune=native -O2 -Os
 
 SRC=src

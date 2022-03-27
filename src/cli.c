@@ -246,7 +246,7 @@ bool handle_command(char* prompt, config_t* cfg)
         command_break(cfg, value);
     }
     else if (!strcmp(cmd, "B") || !strcmp(cmd, "backtrace")) {
-        debugger_backtrace(cfg->pid);
+        debugger_backtrace();
     } else if (!strcmp(cmd, "c") || !strcmp(cmd, "cont")) {
         debugger_cont(cfg);
     } else if (!strcmp(cmd, "e") || !strcmp(cmd, "enable")) {
