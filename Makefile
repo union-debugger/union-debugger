@@ -14,6 +14,8 @@ LIBS=$(foreach l, $(_LIBS), -l$l)
 CTLIBS=-lpthread
 EXE=udb
 
+.PHONY: all build test clean
+
 all: build test
 
 build: $(DEPS)/linenoise.o $(DEPS)/vec.o $(DEPS)/main.o $(DEPS)/breakpoint.o $(DEPS)/config.o $(DEPS)/cli.o $(DEPS)/debugger.o $(DEPS)/utils.o
