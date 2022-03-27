@@ -10,7 +10,7 @@ TARGET=target
 DEPS=target/deps
 BINS=target/$(TEST)
 _LIBS=capstone unwind unwind-ptrace unwind-generic dwarf elf
-LIBS=$(foreach l, $(_LIBS), -l$l)
+LIBS=$(foreach l,$(_LIBS),-l$l)
 CTLIBS=-lpthread
 EXE=udb
 
