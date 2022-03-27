@@ -127,39 +127,40 @@ typedef struct vec_s {
 
 // # Implementation
 // Declarations, (de)allocations, copies
-vec_t* vec_new(size_t elem_size);
-vec_t* vec_with_capacity(size_t capacity, size_t elem_size);
-vec_t* vec_with_value(void* value, size_t len, size_t elem_size);
-vec_t* vec_from_raw_parts(void* raw_ptr, size_t len, size_t elem_size);
-int vec_copy(vec_t* self, vec_t* other);
-int vec_inner_copy(vec_t* self, vec_t* other, size_t start, size_t end);
+vec_t* vec_new(size_t const elem_size);
+vec_t* vec_with_capacity(size_t const capacity, size_t const elem_size);
+vec_t* vec_with_value(void const* value, size_t const len, size_t const elem_size);
+vec_t* vec_from_raw_parts(void* raw_ptr, size_t const len, size_t const elem_size);
+int vec_copy(vec_t const* self, vec_t* other);
+int vec_inner_copy(vec_t const* self, vec_t* other, size_t const start, size_t const end);
 void vec_drop(vec_t* self);
-void vec_drop_many(size_t to_drop, ...);
+void vec_drop_many(size_t const to_drop, ...);
 
 // Lookup
-int vec_contains(vec_t* self, void* value);
-int vec_search(vec_t* self, void* value);
-int vec_is_empty(vec_t* self);
-void* vec_peek(vec_t* self, size_t index);
+int vec_contains(vec_t const* self, void const* value);
+int vec_search(vec_t const* self, void const* value);
+int vec_is_empty(vec_t const* self);
+void const* vec_peek(vec_t const* self, size_t const index);
+void* vec_get(vec_t* self, size_t const index);
 
 // Memory management
-int vec_resize(vec_t* self, size_t new_capacity);
-int vec_reserve(vec_t* self, size_t additional);
+int vec_resize(vec_t* self, size_t const new_capacity);
+int vec_reserve(vec_t* self, size_t const additional);
 int vec_shrink_to_fit(vec_t* self);
-int vec_truncate(vec_t* self, size_t new_len);
+int vec_truncate(vec_t* self, size_t const new_len);
 int vec_clear(vec_t* self);
 
 // Mutation
-int vec_push(vec_t* self, void* elem);
-int vec_insert(vec_t* self, void* elem, size_t index);
+int vec_push(vec_t* self, void const* elem);
+int vec_insert(vec_t* self, void const* elem, size_t const index);
 int vec_pop(vec_t* self, void* ret);
-int vec_delete(vec_t* self, size_t index);
-int vec_remove(vec_t* self, void* ret, size_t index);
-int vec_swap_delete(vec_t* self, size_t index);
-int vec_swap_remove(vec_t* self, void* ret, size_t index);
+int vec_delete(vec_t* self, size_t const index);
+int vec_remove(vec_t* self, void* ret, size_t const index);
+int vec_swap_delete(vec_t* self, size_t const index);
+int vec_swap_remove(vec_t* self, void* ret, size_t const index);
 int vec_append(vec_t* self, vec_t* other);
-int vec_split_at(vec_t* self, vec_t* other, size_t index);
-int vec_swap(vec_t* self, size_t index1, size_t index2);
+int vec_split_at(vec_t* self, vec_t* other, size_t const index);
+int vec_swap(vec_t* self, size_t const index1, size_t const index2);
 int vec_reverse(vec_t* self);
 
 // # Future ideas

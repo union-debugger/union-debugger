@@ -11,7 +11,7 @@
 //
 // Returns a void pointer to the underlying data, from the specified offset.
 static inline
-void* vec_offset(vec_t* self, size_t offset) {
+void* vec_offset(vec_t const* self, size_t const offset) {
     return self->data + offset * self->elem_size;
 }
 
@@ -26,17 +26,13 @@ void vec_drop(vec_t* self) {
 // The user must specify the number of vectors to drop, then the vectors
 // themselves.
 inline
-void vec_drop_many(size_t to_drop, ...) {
+void vec_drop_many(size_t const to_drop, ...) {
     va_list args;
     va_start(args, to_drop);
-
     for (size_t i = 0; i < to_drop; i++) {
         vec_t* self = va_arg(args, vec_t*);
-
-        free(self->data);
-        free(self);
+        vec_drop(self);
     }
-
     va_end(args);
 }
 
@@ -48,14 +44,13 @@ void vec_drop_many(size_t to_drop, ...) {
 //
 // # Panic
 // - Stops the program if the specified element size is 0.
-vec_t* vec_new(size_t elem_size) {
+vec_t* vec_new(size_t const elem_size) {
     if (elem_size == 0) {
         printf("Error: element size of a `vec_t` cannot be 0\n");
         exit(-1);
     }
 
     vec_t* v = malloc(sizeof(vec_t));
-
     if (!v) {
         return NULL;
     }
@@ -79,7 +74,7 @@ vec_t* vec_new(size_t elem_size) {
 //
 // # Panic
 // - Stops the program if the specified element size is 0.
-vec_t* vec_with_capacity(size_t capacity, size_t elem_size) {
+vec_t* vec_with_capacity(size_t const capacity, size_t const elem_size) {
     if (elem_size == 0) {
         printf("Error: element size of a `vec_t` cannot be 0\n");
         exit(-1);
@@ -90,7 +85,6 @@ vec_t* vec_with_capacity(size_t capacity, size_t elem_size) {
     }
 
     vec_t* v = malloc(sizeof(vec_t));
-
     if (!v) {
         return NULL;
     }
@@ -99,7 +93,6 @@ vec_t* vec_with_capacity(size_t capacity, size_t elem_size) {
     v->capacity = capacity;
     v->elem_size = elem_size;
     v->data = malloc(capacity * elem_size);
-
     if (!v->data) {
         return NULL;
     }
@@ -108,7 +101,7 @@ vec_t* vec_with_capacity(size_t capacity, size_t elem_size) {
 }
 
 // TODO!
-vec_t* vec_with_value(void* value, size_t len, size_t elem_size) {
+vec_t* vec_with_value(void const* value, size_t const len, size_t const elem_size) {
     if (elem_size == 0) {
         printf("Error: element size of a `vec_t` cannot be 0\n");
         exit(-1);
@@ -119,7 +112,6 @@ vec_t* vec_with_value(void* value, size_t len, size_t elem_size) {
     }
 
     vec_t* v = malloc(sizeof(vec_t));
-
     if (!v) {
         return NULL;
     }
@@ -128,7 +120,6 @@ vec_t* vec_with_value(void* value, size_t len, size_t elem_size) {
     v->capacity = len;
     v->elem_size = elem_size;
     v->data = malloc(len * elem_size);
-
     if (!v->data) {
         return NULL;
     }
@@ -159,7 +150,7 @@ vec_t* vec_with_value(void* value, size_t len, size_t elem_size) {
 //
 // # Panic
 // - Stops the program if the specified element size is 0.
-vec_t* vec_from_raw_parts(void* raw_ptr, size_t len, size_t elem_size) {
+vec_t* vec_from_raw_parts(void* raw_ptr, size_t const len, size_t const elem_size) {
     if (elem_size == 0) {
         printf("Error: element size of a `vec_t` cannot be 0\n");
         exit(-1);
@@ -191,7 +182,7 @@ vec_t* vec_from_raw_parts(void* raw_ptr, size_t len, size_t elem_size) {
 // - Returns a `VEC_ERR` if `self` or `other` are not valid pointers.
 // - Returns a `VEC_ERR` if the reallocation of the underlying array 
 //   of `other` failed.
-int vec_copy(vec_t* self, vec_t* other) {
+int vec_copy(vec_t const* self, vec_t* other) {
     if (!self || !other) {
         return VEC_ERR;
     }
@@ -202,7 +193,6 @@ int vec_copy(vec_t* self, vec_t* other) {
     if (self->data) {
         free(other->data);
         other->data = malloc(self->elem_size * self->capacity);
-
         if (!other->data) {
             return VEC_ERR;
         }
@@ -227,13 +217,13 @@ int vec_copy(vec_t* self, vec_t* other) {
 // # Panic
 // - Stops the execution of the program if the specified end index is equal
 //   to or greater than the length of the vector.
-int vec_inner_copy(vec_t* self, vec_t* other, size_t start, size_t end) {
+int vec_inner_copy(vec_t const* self, vec_t* other, size_t const start, size_t const end) {
     if (end >= self->len) {
         printf("Error: index out of bounds, `len` is %lu but `index` is %lu\n", 
             self->len, 
             end
         );
-        vec_drop(self);
+        // vec_drop(self);
         exit(-1);
     }
 
@@ -247,13 +237,11 @@ int vec_inner_copy(vec_t* self, vec_t* other, size_t start, size_t end) {
 
     free(other->data);
     other->data = malloc(self->elem_size * len);
-
     if (!other->data) {
         return VEC_ERR;
     }
 
     void* ptr = vec_offset(self, start);
-
     memmove(other->data, ptr, len * self->elem_size);
     
     return VEC_OK;
@@ -267,13 +255,12 @@ int vec_inner_copy(vec_t* self, vec_t* other, size_t start, size_t end) {
 // - Returns a `VEC_ERR` if the underlying data of the vector is not 
 //   a valid pointer.
 inline
-int vec_contains(vec_t* self, void* value) {
+int vec_contains(vec_t const* self, void const* value) {
     if (!self || !self->data) {
         return VEC_ERR;
     }
 
     int contains = 1;
-    
     // Optimized to stop iterating when a match is found
     for (size_t i = 0; i < self->len && contains != 0; i++) {
         contains = memcmp(vec_offset(self, i), value, self->elem_size);
@@ -290,14 +277,13 @@ int vec_contains(vec_t* self, void* value) {
 // - Returns a `VEC_ERR` if the underlying data of the vector is not 
 //   a valid pointer.
 inline
-int vec_search(vec_t* self, void* value) {
+int vec_search(vec_t const* self, void const* value) {
     if (!self || !self->data) {
         return VEC_ERR;
     }
 
-    int contains = 1;
     size_t i = 0;
-
+    int contains = 1;
     // Optimized to stop iterating when a match is found
     while (i < self->len && contains != 0) {
         contains = memcmp(vec_offset(self, i), value, self->elem_size);
@@ -312,11 +298,10 @@ int vec_search(vec_t* self, void* value) {
 // # Failure
 // - Returns a `VEC_ERR` if `self` is not a valid pointer.
 inline
-int vec_is_empty(vec_t* self) {
+int vec_is_empty(vec_t const* self) {
     if (!self) {
         return VEC_ERR;
     }
-
     return self->len == 0;
 }
 
@@ -333,13 +318,13 @@ int vec_is_empty(vec_t* self) {
 // - Stops the program if the specified index is equal to or greater than
 //   the length of the vector.
 inline
-void* vec_peek(vec_t* self, size_t index) {
+void const* vec_peek(vec_t const* self, size_t const index) {
     if (index >= self->len) {
         printf("Error: index out of bounds, `len` is %lu but `index` is %lu\n", 
             self->len, 
             index
         );
-        vec_drop(self);
+        // vec_drop(self);
         exit(-1);
     }
     
@@ -350,6 +335,23 @@ void* vec_peek(vec_t* self, size_t index) {
     return vec_offset(self, index);
 }
 
+inline
+void* vec_get(vec_t* self, size_t const index) {
+    if (index >= self->len) {
+        printf("Error: index out of bounds, `len` is %lu but `index` is %lu\n", 
+            self->len, 
+            index
+        );
+        // vec_drop(self);
+        exit(-1);
+    }
+    
+    if (!self->data) {
+        return NULL;
+    }
+
+    return vec_offset(self, index);
+}
 // Resizes the `vec_t` in place so that `capacity` is equal to `new_capacity`.
 // Does nothing if `new_capacity` is smaller than `capacity`.
 // Returns a `VEC_OK` if the function executed correctly.
@@ -362,7 +364,7 @@ void* vec_peek(vec_t* self, size_t index) {
 //   requested new capacity. See `vec_truncate()` in this case.
 // - Returns a `VEC_ERR` if the reallocation of the underlying data of the
 //   vector failed.
-int vec_resize(vec_t* self, size_t new_capacity) {
+int vec_resize(vec_t* self, size_t const new_capacity) {
     if (!self || !self->data || self->len > new_capacity) {
         return VEC_ERR;
     }
@@ -387,7 +389,7 @@ int vec_resize(vec_t* self, size_t new_capacity) {
 //   a valid pointer.
 // - Returns a `VEC_ERR` if the reallocation of the underlying data of the
 //   vector failed.
-int vec_reserve(vec_t* self, size_t additional) {
+int vec_reserve(vec_t* self, size_t const additional) {
     if (!self || !self->data) {
         return VEC_ERR;
     }
@@ -428,7 +430,7 @@ int vec_shrink_to_fit(vec_t* self) {
 // - Returns a `VEC_ERR` if the underlying data of the vector is not 
 //   a valid pointer.
 // - Returns a `VEC_ERR` if the allocation of the temporary array failed.
-int vec_truncate(vec_t* self, size_t new_len) {
+int vec_truncate(vec_t* self, size_t const new_len) {
     if (!self || !self->data) {
         return VEC_ERR;
     }
@@ -443,7 +445,6 @@ int vec_truncate(vec_t* self, size_t new_len) {
     }
 
     void* tmp = malloc(new_len * self->elem_size);
-
     if (!tmp) {
         return VEC_ERR;
     }
@@ -493,7 +494,7 @@ int vec_clear(vec_t* self) {
 // - Returns a `VEC_ERR` in case a reallocation of the underlying data of
 // the vector is needed but fails.
 inline
-int vec_push(vec_t* self, void* elem) {
+int vec_push(vec_t* self, void const* elem) {
     if (!self) {
         return VEC_ERR;
     }
@@ -516,7 +517,6 @@ int vec_push(vec_t* self, void* elem) {
     }
 
     void* ptr = vec_offset(self, self->len);
-
     memcpy(ptr, elem, self->elem_size);
     self->len += 1;
 
@@ -539,7 +539,7 @@ int vec_push(vec_t* self, void* elem) {
 // - Stops the program if the specified index is equal to or greater than
 //   the length of the vector.
 inline
-int vec_insert(vec_t* self, void* elem, size_t index) {
+int vec_insert(vec_t* self, void const* elem, size_t const index) {
     if (index >= self->len) {
         printf("Error: index out of bounds, `len` is %lu but `index` is %lu\n", 
             self->len, 
@@ -555,14 +555,12 @@ int vec_insert(vec_t* self, void* elem, size_t index) {
 
     if (self->len == self->capacity) {
         int ret = vec_reserve(self, VEC_GROWTH_FACTOR);
-
         if (!ret) {
             return VEC_ERR;
         }
     }
 
     void* ptr = vec_offset(self, index);
-    
     memmove(ptr + self->elem_size, ptr, (self->len - index) * self->elem_size);
     memcpy(ptr, elem, self->elem_size);
     self->len += 1;
@@ -586,7 +584,6 @@ int vec_pop(vec_t* self, void* ret) {
     }
     
     void* ptr = vec_offset(self, self->len - 1);
-
     memcpy(ret, ptr, self->elem_size);
     self->len -= 1;
 
@@ -606,7 +603,7 @@ int vec_pop(vec_t* self, void* ret) {
 // - Stops the program if the specified index is equal to or greater than
 //   the length of the vector.
 inline
-int vec_delete(vec_t* self, size_t index) {
+int vec_delete(vec_t* self, size_t const index) {
     if (index >= self->len) {
         printf("Error: index out of bounds, `len` is %lu but `index` is %lu\n", 
             self->len, 
@@ -621,7 +618,6 @@ int vec_delete(vec_t* self, size_t index) {
     }
 
     void* ptr = vec_offset(self, index);
-
     memmove(ptr, ptr + self->elem_size, (self->len - index) * self->elem_size);
     self->len -= 1;
 
@@ -642,7 +638,7 @@ int vec_delete(vec_t* self, size_t index) {
 // - Stops the program if the specified index is equal to or greater than
 //   the length of the vector.
 inline
-int vec_remove(vec_t* self, void* ret, size_t index) {
+int vec_remove(vec_t* self, void* ret, size_t const index) {
     if (index >= self->len) {
         printf("Error: index out of bounds, `len` is %lu but `index` is %lu\n", 
             self->len, 
@@ -657,7 +653,6 @@ int vec_remove(vec_t* self, void* ret, size_t index) {
     }
 
     void* ptr = vec_offset(self, index);
-
     memcpy(ret, ptr, self->elem_size);
     memmove(ptr, ptr + self->elem_size, (self->len - index) * self->elem_size);
     self->len -= 1;
@@ -681,7 +676,7 @@ int vec_remove(vec_t* self, void* ret, size_t index) {
 // - Stops the program if the specified index is equal to or greater than
 //   the length of the vector.
 inline
-int vec_swap_delete(vec_t* self, size_t index) {
+int vec_swap_delete(vec_t* self, size_t const index) {
     if (index >= self->len) {
         printf("Error: index out of bounds, `len` is %lu but `index` is %lu\n", 
             self->len, 
@@ -697,7 +692,6 @@ int vec_swap_delete(vec_t* self, size_t index) {
 
     void* ptr = vec_offset(self, index);
     void* last = vec_offset(self, self->len - 1);
-
     memmove(ptr, last, self->elem_size);
     self->len -= 1;
 
@@ -721,7 +715,7 @@ int vec_swap_delete(vec_t* self, size_t index) {
 // - Stops the program if the specified index is equal to or greater than
 //   the length of the vector.
 inline
-int vec_swap_remove(vec_t* self, void* ret, size_t index) {
+int vec_swap_remove(vec_t* self, void* ret, size_t const index) {
     if (index >= self->len) {
         printf("Error: index out of bounds, `len` is %lu but `index` is %lu\n", 
             self->len, 
@@ -737,7 +731,6 @@ int vec_swap_remove(vec_t* self, void* ret, size_t index) {
 
     void* ptr = vec_offset(self, index);
     void* last = vec_offset(self, self->len - 1);
-
     memcpy(ret, ptr, self->elem_size);
     memmove(ptr, last, self->elem_size);
     self->len -= 1;
@@ -773,20 +766,17 @@ int vec_append(vec_t* self, vec_t* other) {
         self->len = 0;
         self->capacity = other->len;
         self->data = malloc(self->capacity * self->elem_size);
-
         if (!self->data) {
             return VEC_ERR;
         }
     } else if (self->len + other->len > self->capacity) {
         int ret = vec_reserve(self, other->len);
-
         if (!ret) {
             return VEC_ERR;
         }
     }
 
     void* ptr = vec_offset(self, self->len);
-
     memcpy(ptr, other->data, other->len * other->elem_size);
     self->len += other->len;
     vec_clear(other);
@@ -814,7 +804,7 @@ int vec_append(vec_t* self, vec_t* other) {
 // - Stops the program if the specified index is equal to or greater than
 //   the length of `self`.
 inline
-int vec_split_at(vec_t* self, vec_t* other, size_t index) {
+int vec_split_at(vec_t* self, vec_t* other, size_t const index) {
     if (index >= self->len) {
         printf("Error: index out of bounds, `len` is %lu but `index` is %lu\n", 
             self->len, 
@@ -831,20 +821,17 @@ int vec_split_at(vec_t* self, vec_t* other, size_t index) {
     if (!other->data) {
         other->capacity = self->len - index;
         other->data = malloc(other->capacity * self->elem_size);
-
         if (!other->data) {
             return VEC_ERR;
         }
     } else if (other->len < self->len - index) {
         int ret = vec_reserve(other, (self->len - index));
-
         if (!ret) {
             return VEC_ERR;
         }
     }
 
     void* ptr = vec_offset(self, index);
-
     memcpy(other->data, ptr, (self->len - index) * self->elem_size);
     other->len = self->len - index;
     self->len = index;
@@ -865,7 +852,7 @@ int vec_split_at(vec_t* self, vec_t* other, size_t index) {
 // - Stops the program if the specified index is equal to or greater than
 //   the length of the vector.
 inline
-int vec_swap(vec_t* self, size_t index1, size_t index2) {
+int vec_swap(vec_t* self, size_t const index1, size_t const index2) {
     if (index1 >= self->len || index2 >= self->len) {
         printf("Error: index out of bounds, `len` is %lu but `indexes` are %lu and %lu\n", 
             self->len, 
@@ -883,11 +870,9 @@ int vec_swap(vec_t* self, size_t index1, size_t index2) {
     void* tmp = malloc(self->elem_size);
     void* ptr1 = vec_offset(self, index1);
     void* ptr2 = vec_offset(self, index2);
-    
     memcpy(tmp, ptr1, self->elem_size);
     memmove(ptr1, ptr2, self->elem_size);
     memcpy(ptr2, tmp, self->elem_size);
-
     free(tmp);
 
     return VEC_OK;
