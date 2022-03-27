@@ -212,7 +212,7 @@ i32 breakpoint_remove_id(config_t* cfg, size_t const id)
         return -1;
     }
 
-    if (id <= cfg->breakpoints->len) {
+    if (id >= cfg->breakpoints->len) {
         printf("%swarning:%s no breakpoint of ID %zu.\n", YELLOW, NORMAL, id); 
         return -1;
     }

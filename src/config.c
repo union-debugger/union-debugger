@@ -115,13 +115,17 @@ void config_print(config_t const* self)
     if (self->state == DBG_UNINIT) {
         printf("  State: %s%s%s\n", BOLD, "Uninitialized", NORMAL);
         printf("  Path:  %s%s%s\n", BOLD, "-", NORMAL);
-        printf("  PID:   %s%d%s\n", BOLD, self->pid, NORMAL);
+        printf("  PID:   %s%s%s\n", BOLD, "None", NORMAL);
         printf("  Entry: %s0x%lx%s\n", BOLD, self->entry_address, NORMAL);
         printf("No breakpoints currently set.\n");
     } else {
         printf("  State: %s%s%s\n", BOLD, self->state == DBG_LOADED ? "Loaded" : "Running", NORMAL); 
         printf("  Path:  %s%s%s\n", BOLD, self->path, NORMAL);
-        printf("  PID:   %s%d%s\n", BOLD, self->pid, NORMAL);
+        if (self->pid == 0) {
+            printf("  PID:   %s%s%s\n", BOLD, "None", NORMAL);
+        } else {
+            printf("  PID:   %s%d%s\n", BOLD, self->pid, NORMAL);
+        }
         printf("  Entry: %s0x%lx%s\n", BOLD, self->entry_address, NORMAL);
         breakpoint_list(self);
     }

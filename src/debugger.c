@@ -428,7 +428,7 @@ void debugger_get_libraries(char* path, vec_t* libraries)
     UDB_error(elf_version(EV_CURRENT) != EV_NONE, "Lib pb");
 
     int fd = open(path, O_RDONLY, 0);
-    UDB_error(fd >= 0, "Failed to open file");
+    UDB_error(fd >= 0, "Failed to open file\n The program may have been signaled already :(");
 
     Elf* elf = elf_begin(fd, ELF_C_READ, NULL);
     UDB_error(elf != NULL, "Failed to open elf");

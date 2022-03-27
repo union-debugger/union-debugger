@@ -173,9 +173,10 @@ void command_help()
     printf("    %sdebug_str,    D        %s-- Print 'debug_str' dwarf info.\n", BOLD, NORMAL);
     printf("    %smemmaps,      m        %s-- Print memory maps.\n", BOLD, NORMAL);
     printf("    %smemory,       M        %s-- Print memory usage status.\n", BOLD, NORMAL);
-    printf("    %slibs,         T        %s-- Print inferior's libraries.\n", BOLD, NORMAL);
-    printf("    %sshared_libs,  S        %s-- Print only the inferior's shared libraries.\n", BOLD, NORMAL);
+    printf("    %slibs                   %s-- Print inferior's libraries.\n", BOLD, NORMAL);
+    printf("    %sshared_libs            %s-- Print only the inferior's shared libraries.\n", BOLD, NORMAL);
     printf("    %sregisters,    R        %s-- Print inferior's registers status.\n", BOLD, NORMAL);
+    printf("    %sremove          [id]   %s-- Remove the breakpoint with the given ID (removes all breakpoints if no ID is specified).\n", BOLD, NORMAL);
     printf("    %skill,         k        %s-- Send signal SIGKILL to inferior.\n", BOLD, NORMAL);
     printf("    %shelp,         h        %s-- Print the available debugger commands.\n", BOLD, NORMAL);
     printf("    %squit,         q        %s-- Quit the debugger.\n\n", BOLD, NORMAL);
@@ -197,6 +198,38 @@ bool command_quit(config_t* cfg)
     config_drop(*cfg);
     printf("\nBye :)\n");
     return false;
+}
+
+void command_remove(config_t* cfg, char* value)
+{
+    if (cfg->state == DBG_UNINIT) {
+        printf("%s%serror:%s no target executable currently set.\n", BOLD, RED, NORMAL);
+        return;
+    }
+    
+    if (cfg->breakpoints->len == 0) {
+        printf("%s%serror:%s no breakpoints to remove.\n", BOLD, RED, NORMAL);
+        return;
+    }
+
+    size_t id = SIZE_MAX - 1;
+    if (value) {
+        id = parse_value(value);
+        if (id == SIZE_MAX) {
+            printf("%s%serror:%s failed to parse value.\n", BOLD, RED, NORMAL);
+            return;
+        }
+    }
+
+    if (id != SIZE_MAX - 1) {
+        ssize_t ret = breakpoint_remove_id(cfg, id - 1);
+        if (ret >= 0) {
+            printf("Removed breakpoint #%zu.\n", id);
+        }
+    } else {
+        vec_clear(cfg->breakpoints);
+        printf("Removed all breakpoints.\n");
+    }
 }
 
 void command_run(config_t* cfg, char** args)
@@ -282,11 +315,14 @@ bool handle_command(char* prompt, config_t* cfg)
         command_run(cfg, argv);
     } else if (!strcmp(cmd, "R") || !strcmp(cmd, "registers")) {
         debugger_print_regs(cfg);
+    } else if (!strcmp(cmd, "remove")) {
+        char *value = strtok(NULL, " ");
+        command_remove(cfg, value);
     } else if (!strcmp(cmd, "s") || !strcmp(cmd, "step")) {
         breakpoint_step(cfg);
-    } else if (!strcmp(cmd, "S") || !strcmp(cmd, "shared_libs")) {
+    } else if (!strcmp(cmd, "shared_libs")) {
         debugger_print_shared_libraries(cfg);
-    } else if (!strcmp(cmd, "T") || !strcmp(cmd, "libs")) {
+    } else if (!strcmp(cmd, "libs")) {
         debugger_print_libraries(cfg);
     } else {
         printf("%s%serror:%s `%s` is an unknow command.\n", BOLD, RED, NORMAL, cmd);
