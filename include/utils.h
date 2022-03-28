@@ -38,6 +38,14 @@
         }                                                                           \
     } while (0)
 
+#define UDB_user_error(expr, msg)                                                   \
+    do {                                                                            \
+        if (!(expr)){                                                               \
+            fprintf(stderr, "%s%serror: %s%s\n",BOLD, RED, NORMAL, msg);            \
+            return;                                                                 \
+        }                                                                           \
+    } while (0)
+
 #define UDB_debug(value, fmt)                                                       \
     do {                                                                            \
         if (!strcmp(fmt, "str")) {                                                  \

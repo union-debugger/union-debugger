@@ -12,6 +12,7 @@
 #define BLUE "\033[34m"
 #define MAGENTA "\033[35m"
 #define CYAN "\033[36m"
+#define LIGHTCYAN "\033[96m"
 #define BOLD "\033[1m"
 #define NORMAL "\033[0m"
 #define DIM "\033[2m"

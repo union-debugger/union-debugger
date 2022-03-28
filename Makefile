@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -g3 -Wno-return-type
+CFLAGS=-Wall -Wextra -g3 -Wno-return-type -Wno-format
 CTFLAGS=-w -Wextra -g3 # Compiler flags for tests only.
 OFLAGS=-march=native -mtune=native -O2 -Os
 
