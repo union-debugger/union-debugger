@@ -8,7 +8,7 @@ debugger.
 ## Building
 In order to build the project, the following dependencies must be installed on
 the system:
-- `libelf`
+- `gelf`
 - `libdwarf`
 - `libunwind`
 - `capstone`
