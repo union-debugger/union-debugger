@@ -84,7 +84,7 @@ ssize_t debugger_kill(config_t* cfg, i32 const signal);
 void debugger_print_regs(config_t* cfg);
 void debugger_print_mem();
 void debugger_pids(config_t* cfg);
-void debugger_get_real_path(pid_t pid, char* real_path);
+void debugger_get_real_path(config_t* cfg, char* real_path);
 void debugger_print_real_path(config_t* cfg);
 void debugger_print_mem_maps(config_t* cfg);
 void debugger_backtrace(int dbg_state);

@@ -570,7 +570,7 @@ char* strSYM_STTYPE(unsigned char STT_value) {
 
 
 void debugger_get_symtab(char* path, vec_t* s_syms) {
-    UDB_error(elf_version(EV_CURRENT) != EV_NONE, "Lib pb");
+    UDB_error(elf_version(EV_CURRENT) != EV_NONE, "The ELF Library version is outdated");
 
     int fd = open(path, O_RDONLY, 0);
     UDB_error(fd >= 0, "Failed to open file");
@@ -656,12 +656,12 @@ void debugger_get_symtab(char* path, vec_t* s_syms) {
 }
 
 void debugger_print_symtab(config_t* cfg) {
-    UDB_user_assert(cfg->state == DBG_RUNNING, "Tracee must be running to run that command.");
+    char real_path[BUFFER_LEN];
+    debugger_get_real_path(cfg, real_path);
+    UDB_error((real_path != NULL), "Cannot retrieve program's path");
 
     vec_t* s_syms = vec_with_capacity(1, sizeof(symtab));
-
-    char real_path[BUFFER_LEN];
-    debugger_get_real_path(cfg->pid, real_path);
+    
     debugger_get_symtab(real_path, s_syms);
 
 
@@ -685,12 +685,11 @@ void debugger_print_symtab(config_t* cfg) {
 }
 
 void debugger_print_functions(config_t* cfg) {
-    UDB_user_assert(cfg->state == DBG_RUNNING, "Tracee must be running to run that command.");
+    char real_path[BUFFER_LEN];
+    debugger_get_real_path(cfg, real_path);
+    UDB_error((real_path != NULL), "Cannot retrieve program's path");
 
     vec_t* s_syms = vec_with_capacity(1, sizeof(symtab));
-
-    char real_path[BUFFER_LEN];
-    debugger_get_real_path(cfg->pid, real_path);
     debugger_get_symtab(real_path, s_syms);
 
     printf("%s%s% 50s%s%s     %s  %s      %s% 12s%s%s    %s%s\n\n",
@@ -713,15 +712,15 @@ void debugger_print_functions(config_t* cfg) {
     }
 }
 
-void debugger_print_variables(config_t* cfg) {
-    UDB_user_assert(cfg->state == DBG_RUNNING, "Tracee must be running to run that command.");
+void debugger_print_variables(config_t* cfg)
+{
+    char real_path[BUFFER_LEN];
+    debugger_get_real_path(cfg, real_path);
+    UDB_error((real_path != NULL), "Cannot retrieve program's path");
 
     vec_t* s_syms = vec_with_capacity(1, sizeof(symtab));
 
-    char real_path[BUFFER_LEN];
-    debugger_get_real_path(cfg->pid, real_path);
     debugger_get_symtab(real_path, s_syms);
-
 
     // int char_max = 0;
     // for (size_t i = 0; i < s_syms->len; i++) {
@@ -747,16 +746,13 @@ void debugger_print_variables(config_t* cfg) {
 }
 
 
-void debugger_print_libraries(config_t* cfg) {
-    if (cfg->state != DBG_RUNNING) {
-        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
-        return;
-    }
+void debugger_print_libraries(config_t* cfg)
+{
+    char real_path[BUFFER_LEN];
+    debugger_get_real_path(cfg, real_path);
+    UDB_error((real_path != NULL), "Cannot retrieve program's path");
 
     vec_t* libraries = vec_with_capacity(1, sizeof(library));
-
-    char real_path[BUFFER_LEN];
-    debugger_get_real_path(cfg->pid, real_path);
     
     debugger_get_libraries(real_path, libraries);
 
@@ -771,14 +767,11 @@ void debugger_print_libraries(config_t* cfg) {
 
 void debugger_print_shared_libraries(config_t* cfg)
 {
-    if (cfg->state != DBG_RUNNING) {
-        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
-        return;
-    }
+    char real_path[BUFFER_LEN];
+    debugger_get_real_path(cfg, real_path);
+    UDB_error((real_path != NULL), "Cannot retrieve program's path");
 
     vec_t* libraries = vec_with_capacity(1, sizeof(library));
-    char real_path[BUFFER_LEN];
-    debugger_get_real_path(cfg->pid, real_path);
 
     debugger_get_libraries(real_path, libraries);
 
@@ -828,10 +821,9 @@ int get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr)
 
 void debugger_print_debug_strings(config_t* cfg)
 {
-    if (cfg->state != DBG_RUNNING) {
-        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
-        return;
-    }
+    char real_path[150];
+    debugger_get_real_path(cfg, real_path);
+    UDB_error((real_path != NULL), "Cannot retrieve program's path");
 
     vec_t* dstr = vec_with_capacity(1, sizeof(debug_str));
 
@@ -843,10 +835,6 @@ void debugger_print_debug_strings(config_t* cfg)
     ddbg.dbg = 0;
     ddbg.groupnumber = DW_GROUPNUMBER_ANY;
     int res = 0;
-
-    char real_path[150];
-
-    debugger_get_real_path(cfg->pid, real_path);
 
     res = dwarf_init_path(real_path, ddbg.true_pathbuf, ddbg.tpathlen, ddbg.groupnumber, ddbg.errhand, ddbg.errarg, &ddbg.dbg, &ddbg.error);
 
@@ -982,23 +970,37 @@ void debugger_print_mem_maps(config_t* cfg)
     }
 }
 
-void debugger_get_real_path(pid_t pid, char* real_path)
+void debugger_get_real_path(config_t* cfg, char* real_path)
 {
-    char proc_addr[BUFFER_LEN];
-    sprintf(proc_addr, "/proc/%d/exe", pid);
-    ssize_t ret = readlink(proc_addr, real_path, BUFFER_LEN);
-    UDB_assert(ret >= 0, "failed to read real path");
+    if (cfg->state == DBG_LOADED) {
+        struct stat buffer;
+        int exist = stat(cfg->path, &buffer);
+        UDB_user_error((exist == 0), "Executable does not exists");
+        // real_path = cfg->path;
+        strcpy(real_path, cfg->path);
+    }
+    else if (cfg->state == DBG_RUNNING){
+        char proc_addr[BUFFER_LEN];
+        sprintf(proc_addr, "/proc/%d/exe", cfg->pid);
+        ssize_t ret = readlink(proc_addr, real_path, BUFFER_LEN);
+        UDB_assert(ret >= 0, "failed to read real path");
+    }
+    else real_path = NULL;
 }
 
 void debugger_print_real_path(config_t* cfg)
 {
     char real_path[BUFFER_LEN];
-    if (cfg->state != DBG_RUNNING) {
-        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
-        return;
+
+    // Verification is made in debugger_get_real_path
+    debugger_get_real_path(cfg, real_path);
+    UDB_error((real_path != NULL), "Cannot retrieve program's path");
+
+    if (cfg->state != DBG_RUNNING){
+        printf("Executable path: %s%s%s.\n", BOLD, real_path, NORMAL);
+        printf("In order to get the executable real path, please run the execution using `r` or `run`.\n");
     }
-    debugger_get_real_path(cfg->pid, real_path);
-    printf("Real path: %s%s%s.\n", BOLD, real_path, NORMAL);
+    else printf("Real path: %s%s%s.\n", BOLD, real_path, NORMAL);
 }
 
 ssize_t debugger_kill(config_t* cfg, i32 const signal)
