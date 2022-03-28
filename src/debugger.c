@@ -751,12 +751,15 @@ void debugger_print_libraries(config_t* cfg)
     
     debugger_get_libraries(real_path, libraries);
 
+    printf("\t%s%sAddress                %s%sType    %sName%s\n\n", BOLD, YELLOW, NORMAL, BOLD, LIGHTCYAN, NORMAL);
     for (size_t i = 0; i < libraries->len; i++) {
         library* lib = (library*)vec_peek(libraries, i);
         if (lib->type == DT_NEEDED)
-            printf("0x%010lx (%s) \t \t[%s]\n", lib->addr, lib->strtype, lib->name);
+            printf("\t%s0x%08lx  %s% 15s    %s%s\n", YELLOW, lib->addr, GREEN, lib->strtype, LIGHTCYAN, lib->name, NORMAL);
         else
-            printf("0x%010lx (%s)\n", lib->addr, lib->strtype);
+            printf("\t%s0x%08lx  %s% 15s\n", YELLOW, lib->addr, NORMAL, lib->strtype);
+
+        // printf("\t%s0x%05llx    %s% 6lld    %s%s%s\n", YELLOW, dst->offset, NORMAL, dst->len, LIGHTCYAN, dst->str, NORMAL);
     }
 }
 
@@ -770,10 +773,11 @@ void debugger_print_shared_libraries(config_t* cfg)
 
     debugger_get_libraries(real_path, libraries);
 
+    printf("\t%s%sAddress                %s%sType    %sName%s\n\n", BOLD, YELLOW, NORMAL, BOLD, LIGHTCYAN, NORMAL);
     for (size_t i = 0; i < libraries->len; i++) {
         library* lib = (library*)vec_peek(libraries, i);
         if (lib->type == DT_NEEDED)
-            printf("0x%010lx (%s) \t \t[%s]\n", lib->addr, lib->strtype, lib->name);
+            printf("\t%s0x%08lx  %s% 15s    %s%s\n", YELLOW, lib->addr, GREEN, lib->strtype, LIGHTCYAN, lib->name, NORMAL);
     }
 }
 
@@ -840,9 +844,10 @@ void debugger_print_debug_strings(config_t* cfg)
 
     get_debug_strings(ddbg.dbg, &ddbg.error, dstr);
 
+    printf("\t%s%sAddress      %s%sSize    %sName%s\n\n", BOLD, YELLOW, NORMAL, BOLD, LIGHTCYAN, NORMAL);
     for (size_t i = 0; i < dstr->len; i++) {
         debug_str* dst = (debug_str*)vec_peek(dstr, i);
-        printf("name at offset 0x%05llx, length % 6lld is '%s'\n", dst->offset, dst->len, dst->str);
+        printf("\t%s0x%05llx    %s% 6lld    %s%s%s\n", YELLOW, dst->offset, NORMAL, dst->len, LIGHTCYAN, dst->str, NORMAL);
     }
 
     dwarf_finish(ddbg.dbg);
