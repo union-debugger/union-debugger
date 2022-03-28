@@ -755,9 +755,9 @@ void debugger_print_libraries(config_t* cfg)
     for (size_t i = 0; i < libraries->len; i++) {
         library* lib = (library*)vec_peek(libraries, i);
         if (lib->type == DT_NEEDED)
-            printf("\t%s0x%08lx  %s% 15s    %s%s\n", YELLOW, lib->addr, GREEN, lib->strtype, LIGHTCYAN, lib->name, NORMAL);
+            printf("\t%s0x%010lx  %s% 15s    %s%s\n", YELLOW, lib->addr, GREEN, lib->strtype, LIGHTCYAN, lib->name, NORMAL);
         else
-            printf("\t%s0x%08lx  %s% 15s\n", YELLOW, lib->addr, NORMAL, lib->strtype);
+            printf("\t%s0x%010lx  %s% 15s\n", YELLOW, lib->addr, NORMAL, lib->strtype);
 
         // printf("\t%s0x%05llx    %s% 6lld    %s%s%s\n", YELLOW, dst->offset, NORMAL, dst->len, LIGHTCYAN, dst->str, NORMAL);
     }
@@ -777,7 +777,7 @@ void debugger_print_shared_libraries(config_t* cfg)
     for (size_t i = 0; i < libraries->len; i++) {
         library* lib = (library*)vec_peek(libraries, i);
         if (lib->type == DT_NEEDED)
-            printf("\t%s0x%08lx  %s% 15s    %s%s\n", YELLOW, lib->addr, GREEN, lib->strtype, LIGHTCYAN, lib->name, NORMAL);
+            printf("\t%s0x%010lx  %s% 15s    %s%s\n", YELLOW, lib->addr, GREEN, lib->strtype, LIGHTCYAN, lib->name, NORMAL);
     }
 }
 
