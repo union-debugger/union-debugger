@@ -25,12 +25,15 @@ void completions(char const* buf, linenoiseCompletions* lc)
     case 'c':
         linenoiseAddCompletion(lc, "cont ");
         break;
-    case 'e':
-        linenoiseAddCompletion(lc, "enable ");
-        break;
     case 'd':
         linenoiseAddCompletion(lc, "disable ");
         linenoiseAddCompletion(lc, "debug_str ");
+        break;
+    case 'e':
+        linenoiseAddCompletion(lc, "enable ");
+        break;
+    case 'f':
+        linenoiseAddCompletion(lc, "functions ");
         break;
     case 'h':
         linenoiseAddCompletion(lc, "help ");
@@ -63,7 +66,11 @@ void completions(char const* buf, linenoiseCompletions* lc)
         break;
     case 's':
         linenoiseAddCompletion(lc, "shared_libs ");
+        linenoiseAddCompletion(lc, "symtab ");
         linenoiseAddCompletion(lc, "step ");
+        break;
+    case 'v':
+        linenoiseAddCompletion(lc, "variables ");
         break;
     default:
         return;
@@ -173,6 +180,9 @@ void command_help()
     printf("    %sdebug_str,    D        %s-- Print debug_str dwarf info.\n", BOLD, NORMAL);
     printf("    %smemmaps,      m        %s-- Print memory maps.\n", BOLD, NORMAL);
     printf("    %smemory,       M        %s-- Print memory usage status.\n", BOLD, NORMAL);
+    printf("    %ssymtab,       s        %s-- Print inferior's symboles table.\n", BOLD, NORMAL);
+    printf("    %sfunctions,    f        %s-- Print inferior's functions.\n", BOLD, NORMAL);
+    printf("    %svariables,    v        %s-- Print inferior's global variables.\n", BOLD, NORMAL);
     printf("    %slibs,         T        %s-- Print program libraries.\n", BOLD, NORMAL);
     printf("    %sshared_libs,  S        %s-- Print only the program shared libraries.\n", BOLD, NORMAL);
     printf("    %sregisters,    R        %s-- Print registers status.\n", BOLD, NORMAL);
@@ -267,6 +277,8 @@ bool handle_command(char* prompt, config_t* cfg)
         command_help();
     } else if (!strcmp(cmd, "i") || !strcmp(cmd, "info")) {
         config_print(cfg);
+    } else if (!strcmp(cmd, "f") || !strcmp(cmd, "functions")) {
+        debugger_print_functions(cfg);
     } else if (!strcmp(cmd, "k") || !strcmp(cmd, "kill")) {
         char* signal = strtok(NULL, " ");
         command_kill(cfg, signal);
@@ -307,6 +319,10 @@ bool handle_command(char* prompt, config_t* cfg)
         debugger_print_libraries(cfg);
     } else if (!strcmp(cmd, "S") || !strcmp(cmd, "shared_libs")) {
         debugger_print_shared_libraries(cfg);
+    } else if (!strcmp(cmd, "s") || !strcmp(cmd, "symtab")) {
+        debugger_print_symtab(cfg);
+    } else if (!strcmp(cmd, "v") || !strcmp(cmd, "vars")) {
+        debugger_print_variables(cfg);
     } else if (!strcmp(cmd, "pids")) {
         debugger_pids(cfg);
     } else if (!strcmp(cmd, "path")) {

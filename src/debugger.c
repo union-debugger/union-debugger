@@ -146,7 +146,7 @@ ssize_t debugger_wait_signal(config_t* cfg)
             case SIGTTIN:
             case SIGTTOU:
                 break;
-            default: break;
+            default:break;
         }
     } else {
         return -1;
@@ -477,10 +477,279 @@ void debugger_get_libraries(char* path, vec_t* libraries)
 }
 
 
-void debugger_print_libraries(config_t* cfg) {
-    vec_t* libraries = vec_with_capacity(1, sizeof(library));
+char* ELF_get_section_name(Elf* elf, GElf_Shdr shdr) {
+    size_t shstrndx;
+    if (elf_getshdrstrndx(elf, &shstrndx) != 0)
+        printf("elf_getshdrstrndx failed : %s.", elf_errmsg(-1));
 
+    char* section_name = elf_strptr(elf, shstrndx, shdr.sh_name);
+    UDB_error(section_name, "Failed to get ELF section name");
+    return section_name;
+}
+
+
+char* strSYM_STVISIBILITY(unsigned char STV_value) {
+    // STV_DEFAULT 0x00 - which means this is the default visibility rules
+    // STV_INTERNAL 0x01 - Processor specific hidden class
+    // STV_HIDDEN 0x02 - means this symbol is not available for reference in other modules
+    // STV_PROTECTED 0x03 - Documentation refers to this as a protected symbol.I believe the only thing that differs between this and a normal STV_DEFAULT symbols is that it won't be allowed to be overridden when referenced from within its own shared library.
+
+    /* Symbol visibility specification encoded in the st_other field.  */
+    switch (ELF64_ST_VISIBILITY(STV_value)) {
+    case STV_DEFAULT:            		/* Default symbol visibility rules */
+        return "STV_DEFAULT"; break;
+    case STV_INTERNAL:           		/* Processor specific hidden class */
+        return "STV_INTERNAL"; break;
+    case STV_HIDDEN:         		/* Sym unavailable in other modules */
+        return "STV_HIDDEN"; break;
+    case STV_PROTECTED:          		/* Not preemptible, not exported */
+        return "STV_PROTECTED"; break;
+    default:
+        return "STV_Unknown";
+    }
+}
+
+char* strSYM_STSCOPE(unsigned char STT_value) {
+    switch ELF64_ST_BIND(STT_value) {
+    case STB_LOCAL: 		/* Local symbol */
+        return "STB_LOCAL"; break;
+    case STB_GLOBAL:    		/* Global symbol */
+        return "STB_GLOBAL"; break;
+    case STB_WEAK:  		/* Weak symbol */
+        return "STB_WEAK"; break;
+    case STB_NUM:   		/* Number of defined types.  */
+        return "STB_NUM"; break;
+        // case STB_LOOS:  		/* Start of OS-specific */
+        //     return "STB_LOOS"; break;
+    case STB_GNU_UNIQUE:    		/* Unique symbol.  */
+        return "STB_GNU_UNIQUE"; break;
+        // case STB_HIOS:  		/* End of OS-specific */
+        //     return "STB_HIOS"; break;
+        // case STB_LOPROC:    		/* Start of processor-specific */
+        //     return "STB_LOPROC"; break;
+        // case STB_HIPROC:    		/* End of processor-specific */
+        //     return "STB_HIPROC"; break;
+    default:
+        return "STB_Unknown";
+    }
+}
+
+char* strSYM_STTYPE(unsigned char STT_value) {
+    switch (ELF64_ST_TYPE(STT_value)) {
+    case STT_NOTYPE:             /* Symbol type is unspecified */
+        return "STT_NOTYPE"; break;
+    case STT_OBJECT:             /* Symbol is a data object */
+        return "STT_OBJECT"; break;
+    case STT_FUNC:               /* Symbol is a code object */
+        return "STT_FUNC"; break;
+    case STT_SECTION:                /* Symbol associated with a section */
+        return "STT_SECTION"; break;
+    case STT_FILE:               /* Symbol's name is file name */
+        return "STT_FILE"; break;
+    case STT_COMMON:             /* Symbol is a common data object */
+        return "STT_COMMON"; break;
+    case STT_TLS:                /* Symbol is thread-local data object*/
+        return "STT_TLS"; break;
+    case STT_NUM:                /* Number of defined types.  */
+        return "STT_NUM"; break;
+        // case STT_LOOS:               /* Start of OS-specific */
+        //     return "STT_LOOS"; break;
+    case STT_GNU_IFUNC:              /* Symbol is indirect code object */
+        return "STT_GNU_IFUNC"; break;
+        // case STT_HIOS:               /* End of OS-specific */
+        //     return "STT_HIOS"; break;
+        // case STT_LOPROC:             /* Start of processor-specific */
+        //     return "STT_LOPROC"; break;
+        // case STT_HIPROC:             /* End of processor-specific */
+        //     return "STT_HIPROC"; break;
+    default:
+        return "STT_Unknown";
+    }
+}
+
+
+void debugger_get_symtab(char* path, vec_t* s_syms) {
+    UDB_error(elf_version(EV_CURRENT) != EV_NONE, "Lib pb");
+
+    int fd = open(path, O_RDONLY, 0);
+    UDB_error(fd >= 0, "Failed to open file");
+
+    Elf* elf = elf_begin(fd, ELF_C_READ, NULL);
+    UDB_error(elf != NULL, "Failed to open elf");
+    UDB_error(elf_kind(elf) == ELF_K_ELF, "Provided file does not contain ELF data"); //  Verify it's an ELF file.
+
+    Elf_Scn* scn = NULL; // Elf descriptor
+
+    // Get section with next section index.
+    while ((scn = elf_nextscn(elf, scn)) != NULL) {
+        GElf_Shdr shdr = {}; // Section Header
+        UDB_error(gelf_getshdr(scn, &shdr) == &shdr, "Failed to retrieve section header"); // Retrieve section header
+
+        // printf("Reading section ... %s\n", strSHT(shdr.sh_type));
+        // char* section_name = ELF_get_section_name(elf, shdr);
+        // printf("Reading section ... %s (%ld)\n", section_name, shdr.sh_size);
+
+        if (shdr.sh_type == SHT_SYMTAB) {
+            // typedef struct {
+            // Elf64_Word st_name;  /* (4 bytes) Symbol name  unsigned int  */
+            // unsigned char st_info;  /* (1 byte) Symbol type and binding */
+            // unsigned char st_other; /* (1 byte) Symbol visibility */
+            // Elf64_Section st_shndx; /* (2 bytes) Section index unsigned short int*/
+            // Elf64_Addr st_value; /* (8 bytes) Symbol value unsigned long int */
+            // Elf64_Xword st_size; /*  (8 bytes) Symbol size unsigned long int */
+            // } Elf64_Sym;
+
+            /*
+            * SHT_SYMTAB
+            * The symbol table holds information needed to locateand relocate a program's definitions and symbolic references
+            *
+            * st_value Value of the symbol this has different interpretations depending on the symbol type :
+            * In executable filesand shared objects this file holds the virtual address for the symbol's definition.
+            *     For relocatable files this value will for the most part indicate the offset for where the symbol is defined.
+            *     For Symbols who's st_shndx is a SHN_COMMON, st_value will hold alignment constraints for when its relocated.
+            *     st_size  Size of of the symbol, indicates how many bytes will be occupied by what this symbol represents depending again on symbol type - for the * most part either the size of the data field for a variable or the size of code for a function.
+            */
+
+            Elf_Data* data = NULL;
+            data = elf_getdata(scn, data);
+            UDB_error(data != NULL, "Failed to gather data");
+
+            size_t sh_entsize = gelf_fsize(elf, ELF_T_SYM, 1, EV_CURRENT);
+
+            symtab s_sym;
+
+            for (size_t i = 0; i < shdr.sh_size / sh_entsize; i++) {
+
+                GElf_Sym sym = {};
+                UDB_error(gelf_getsym(data, i, &sym) == &sym, "Failed to retrieve section");
+
+                if ((sym.st_name == 0) || (sym.st_shndx == SHN_UNDEF))
+                    continue;
+
+                vec_push(s_syms, &s_sym);
+
+                // printf("% 50s\t(%02d) % 10s - % 10s\t(%02d) % 20s \t| value : %ld size : %ld\n", sym_name, sym.st_info, strSYM_STSCOPE(sym.st_info), strSYM_STTYPE(sym.st_info), sym.st_other, strSYM_STVISIBILITY(sym.st_other), sym.st_value, sym.st_size);
+
+                s_sym.st_name = sym.st_name;
+                s_sym.name = strdup(elf_strptr(elf, shdr.sh_link, sym.st_name));
+                s_sym.st_info = sym.st_info;
+                s_sym.scope = strSYM_STSCOPE(sym.st_info);
+                s_sym.type = strSYM_STTYPE(sym.st_info);
+                s_sym.st_other = sym.st_other;
+                s_sym.visibility = strSYM_STVISIBILITY(sym.st_other);
+                s_sym.st_value = sym.st_value;
+                s_sym.st_size = sym.st_size;
+
+                // st_value Value of the symbol this has different interpretations depending on the symbol type :
+                // In executable filesand shared objects this file holds the virtual address for the symbol's definition.
+                //     For relocatable files this value will for the most part indicate the offset for where the symbol is defined.
+                //     For Symbols who's st_shndx is a SHN_COMMON, st_value will hold alignment constraints for when its relocated.
+                //     st_size  Size of of the symbol, indicates how many bytes will be occupied by what this symbol represents depending again on symbol type - for the most part either the size of the data field for a variable or the size of code for a function.
+
+                VEC_MUT(s_syms, symtab, s_syms->len - 1, s_sym);
+            }
+        }
+    }
+    UDB_error(elf_end(elf) == 0, "Failed to close ELF");
+    UDB_error(close(fd) == 0, "Failed to close file");
+}
+
+void debugger_print_symtab(config_t* cfg) {
     UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
+
+    vec_t* s_syms = vec_with_capacity(1, sizeof(symtab));
+
+    char real_path[BUFFER_LEN];
+    debugger_get_real_path(cfg->pid, real_path);
+    debugger_get_symtab(real_path, s_syms);
+
+
+    printf("%s%s% 50s%s%s     %s  %s  %s     %s% 12s%s%s    %s%s\n\n",
+        BOLD, CYAN, "Name", NORMAL, BOLD,
+        "  Scope  ", "     Type  ", "Visibility",
+        YELLOW, "Address", NORMAL, BOLD, "Var size", NORMAL);
+
+    for (size_t i = 0; i < s_syms->len; i++) {
+        symtab* s_sym = (symtab*)vec_peek(s_syms, i);
+
+        printf("%s% 50s%s    %s% 8s%s    % 9s    %s% 9s      %s0x%010lx%s",
+            LIGHTCYAN, s_sym->name, NORMAL,
+            (ELF64_ST_BIND(s_sym->st_info) == STB_GLOBAL) ? GREEN : NORMAL, s_sym->scope + 4, NORMAL,
+            s_sym->type + 4,
+            (ELF64_ST_VISIBILITY(s_sym->st_other) != STV_DEFAULT) ? RED : NORMAL, s_sym->visibility + 4,
+            YELLOW, s_sym->st_value, NORMAL);
+        if (s_sym->st_size != 0) printf("    %ld\n", s_sym->st_size);
+        else printf("\n");
+    }
+}
+
+void debugger_print_functions(config_t* cfg) {
+    UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
+
+    vec_t* s_syms = vec_with_capacity(1, sizeof(symtab));
+
+    char real_path[BUFFER_LEN];
+    debugger_get_real_path(cfg->pid, real_path);
+    debugger_get_symtab(real_path, s_syms);
+
+    printf("%s%s% 50s%s%s     %s  %s      %s% 12s%s%s    %s%s\n\n",
+        BOLD, CYAN, "Name", NORMAL, BOLD,
+        "  Scope  ", "Visibility",
+        YELLOW, "Address", NORMAL,
+        BOLD, "Var size", NORMAL);
+    for (size_t i = 0; i < s_syms->len; i++) {
+        symtab* s_sym = (symtab*)vec_peek(s_syms, i);
+
+        if (ELF64_ST_TYPE(s_sym->st_info) == STT_FUNC) {
+            printf("%s% 50s%s    %s% 8s%s     %s% 9s      %s0x%010lx%s",
+                LIGHTCYAN, s_sym->name, NORMAL,
+                (ELF64_ST_BIND(s_sym->st_info) == STB_GLOBAL) ? GREEN : NORMAL, s_sym->scope + 4, NORMAL,
+                (ELF64_ST_VISIBILITY(s_sym->st_other) != STV_DEFAULT) ? RED : NORMAL, s_sym->visibility + 4,
+                YELLOW, s_sym->st_value, NORMAL);
+            if (s_sym->st_size != 0) printf("	  %ld\n", s_sym->st_size);
+            else printf("\n");
+        }
+    }
+}
+
+void debugger_print_variables(config_t* cfg) {
+    UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
+
+    vec_t* s_syms = vec_with_capacity(1, sizeof(symtab));
+
+    char real_path[BUFFER_LEN];
+    debugger_get_real_path(cfg->pid, real_path);
+    debugger_get_symtab(real_path, s_syms);
+
+
+    // int char_max = 0;
+    // for (size_t i = 0; i < s_syms->len; i++) {
+    //     symtab* s_sym = (symtab*)vec_peek(s_syms, i);
+    //     if (ELF64_ST_TYPE(s_sym->st_info) == STT_OBJECT && strlen(s_sym->name) > char_max) char_max = strlen(s_sym->name);
+    // }
+
+    printf("%s%s% 50s%s%s     %s  %s      %s% 12s%s%s    %s%s\n\n", BOLD, CYAN, "Name", NORMAL, BOLD, "  Scope  ", "Visibility", YELLOW, "Address", NORMAL, BOLD, "Var size", NORMAL);
+
+    for (size_t i = 0; i < s_syms->len; i++) {
+        symtab* s_sym = (symtab*)vec_peek(s_syms, i);
+
+        if (ELF64_ST_TYPE(s_sym->st_info) == STT_OBJECT) {
+            printf("%s% 50s%s    %s% 8s%s     %s% 9s      %s0x%010lx%s",
+                LIGHTCYAN, s_sym->name, NORMAL,
+                (ELF64_ST_BIND(s_sym->st_info) == STB_GLOBAL) ? GREEN : NORMAL, s_sym->scope + 4, NORMAL,
+                (ELF64_ST_VISIBILITY(s_sym->st_other) != STV_DEFAULT) ? RED : NORMAL, s_sym->visibility + 4,
+                YELLOW, s_sym->st_value, NORMAL);
+            if (s_sym->st_size != 0) printf("	  %ld\n", s_sym->st_size);
+            else printf("\n");
+        }
+    }
+}
+
+
+void debugger_print_libraries(config_t* cfg) {
+    UDB_user_assert(cfg->state == STATE_RUNNING, "Tracee must be running to run that command.");
+
+    vec_t* libraries = vec_with_capacity(1, sizeof(library));
 
     char real_path[BUFFER_LEN];
     debugger_get_real_path(cfg->pid, real_path);
@@ -549,12 +818,9 @@ int get_debug_strings(Dwarf_Debug dbg, Dwarf_Error* err, vec_t* dstr)
         i++;
     }
     if (i == 0) {
+        UDB_error(!(ret == DW_DLV_NO_ENTRY), "This executable does not contains debug info");
+        UDB_error(!(ret == DW_DLV_ERROR), dwarf_errmsg(*err));
     }
-    UDB_error(!(ret == DW_DLV_NO_ENTRY), "This executable does not contains debug info");
-    UDB_error((ret == DW_DLV_ERROR), dwarf_errmsg(*err));
-    UDB_error(!(ret == DW_DLV_ERROR), dwarf_errmsg(*err));
-    // DW_DLV_NO_ENTRY
-    // DW_DLV_ERROR
     return 0;
 }
 

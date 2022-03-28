@@ -64,6 +64,19 @@ typedef struct {
     char* name;
 }library;
 
+
+typedef struct {
+    unsigned int st_name;
+    char* name;
+    unsigned char st_info;
+    char* scope;
+    char* type;
+    unsigned char st_other;
+    char* visibility;
+    unsigned long int st_value;
+    unsigned long int st_size;
+} symtab;
+
 ssize_t debugger_run(config_t *cfg, char* const* argv);
 ssize_t debugger_wait_signal(config_t* cfg);
 ssize_t debugger_cont(config_t* cfg);
@@ -78,3 +91,7 @@ void debugger_backtrace();
 void debugger_print_debug_strings(config_t* cfg);
 void debugger_print_libraries(config_t* cfg);
 void debugger_print_shared_libraries(config_t* cfg);
+void debugger_print_global_vars(config_t* cfg);
+void debugger_print_symtab(config_t* cfg);
+void debugger_print_functions(config_t* cfg);
+void debugger_print_variables(config_t* cfg);
