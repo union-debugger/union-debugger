@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <wait.h>
+#include<sys/stat.h>
 
 #include <sys/personality.h>
 #include <sys/user.h>
@@ -149,10 +150,7 @@ ssize_t debugger_wait_signal(config_t* cfg)
 
 ssize_t debugger_cont(config_t* cfg)
 {
-    if (cfg->state != DBG_RUNNING) {
-        printf("%s%sinfo:%s no target executable is currently running.\n", BOLD, CYAN, NORMAL);
-        return -1;
-    }
+    UDB_user_error(cfg->state == DBG_RUNNING, "no target executable is currently running.");
 
     if (breakpoint_step(cfg) < 0) {
         printf("%s%serror:%s failed to step\n", BOLD, RED, NORMAL);
@@ -186,10 +184,7 @@ void debugger_get_regs(pid_t pid, struct user_regs_struct* regs)
 
 void debugger_print_regs(config_t* cfg)
 {
-    if (cfg->state != DBG_RUNNING) {
-        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
-        return;
-    }
+    UDB_user_error(cfg->state == DBG_RUNNING, "no target executable is currently running.");
 
     struct user_regs_struct regs;
     debugger_get_regs(cfg->pid, &regs);
@@ -903,7 +898,7 @@ int debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
     char path[BUFFER_LEN];
     snprintf(path, sizeof(path), "/proc/%u/maps", inferior_pid);
     FILE* fp = fopen(path, "r");
-    UDB_assert(fp, "failed to read memory maps");
+    UDB_assert(fp, "Failed to read memory maps");
 
     char* buff = NULL;
     size_t buff_size = 0;
@@ -955,10 +950,7 @@ int debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
 
 void debugger_print_mem_maps(config_t* cfg)
 {
-    if (cfg->state != DBG_RUNNING) {
-        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
-        return;
-    }
+    UDB_user_error(cfg->state != DBG_LOADED, "no target executable is currently running.");
 
     vec_t* p_mmaps = vec_with_capacity(1, sizeof(p_mem_maps));
 
@@ -991,7 +983,6 @@ void debugger_get_real_path(config_t* cfg, char* real_path)
 void debugger_print_real_path(config_t* cfg)
 {
     char real_path[BUFFER_LEN];
-
     // Verification is made in debugger_get_real_path
     debugger_get_real_path(cfg, real_path);
     UDB_error((real_path != NULL), "Cannot retrieve program's path");
@@ -1005,10 +996,7 @@ void debugger_print_real_path(config_t* cfg)
 
 ssize_t debugger_kill(config_t* cfg, i32 const signal)
 {
-    if (cfg->state != DBG_RUNNING) {
-        printf("%s%serror:%s no target executable is currently running.\n", BOLD, RED, NORMAL);
-        return -1;
-    }
+    UDB_user_error(cfg->state == DBG_RUNNING, "no target executable is currently running.");
 
     i32 ret = kill(cfg->pid, signal);
     if (ret < 0) {

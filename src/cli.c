@@ -174,6 +174,7 @@ void command_help()
     printf("    %sbreak,        b <addr> %s-- Set a breakpoint at the given address (hexadecimal format).\n", BOLD, NORMAL);
     printf("    %senable,       e [id]   %s-- Enable the breakpoint with the given ID (enables all breakpoints if no ID is specified).\n", BOLD, NORMAL);
     printf("    %sdisable,      d [id]   %s-- Disable the breakpoint with the given ID (disables all breakpoints if no ID is specified).\n", BOLD, NORMAL);
+    printf("    %sstep,         s        %s-- Resume execution until next breakpoint.\n", BOLD, NORMAL);
     printf("    %slist,         L        %s-- List breakpoints.\n", BOLD, NORMAL);
     printf("    %sbacktrace,    B        %s-- Backtrace the current stack.\n", BOLD, NORMAL);
     printf("    %spath,         p        %s-- Print the debugged file path.\n", BOLD, NORMAL);
@@ -200,7 +201,7 @@ bool command_quit(config_t* cfg)
         bool ans = ask_user();
         if (ans) {
             i32 ret = debugger_kill(cfg, SIGKILL);
-            UDB_assert(ret <= 0, "failed to kill child process");
+            UDB_error(ret <= 0, "failed to kill child process");
         } else {
             printf("Continuing debugging session.\n");
             return true;
@@ -335,9 +336,9 @@ bool handle_command(char* prompt, config_t* cfg)
         breakpoint_step(cfg);
     } else if (!strcmp(cmd, "shared_libs")) {
         debugger_print_shared_libraries(cfg);
-    } else if (!strcmp(cmd, "s") || !strcmp(cmd, "symtab")) {
+    } else if (!strcmp(cmd, "S") || !strcmp(cmd, "symtab")) {
         debugger_print_symtab(cfg);
-    } else if (!strcmp(cmd, "v") || !strcmp(cmd, "vars")) {
+    } else if (!strcmp(cmd, "v") || !strcmp(cmd, "vars") || !strcmp(cmd, "variables")) {
         debugger_print_variables(cfg);
     } else if (!strcmp(cmd, "pids")) {
         debugger_pids(cfg);
