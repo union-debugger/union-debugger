@@ -18,7 +18,7 @@ int main(int argc, char** argv)
     bool ret = true;
     while (ret == true) {
         char* prompt_buffer;
-        prompt_buffer = linenoise("\033[34m(udb) >\033[0m ");
+        prompt_buffer = linenoise("\033[35m(udb) >\033[0m ");
         linenoiseHistoryAdd(prompt_buffer);
         linenoiseHistorySave(UDB_HISTORY);
         ret = handle_command(prompt_buffer, &cfg);

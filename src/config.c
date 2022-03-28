@@ -1,11 +1,13 @@
 #include <elf.h>
 #include <getopt.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
 #include "../include/breakpoint.h"
 #include "../include/config.h"
+#include "../include/debugger.h"
 #include "../include/utils.h"
 
 #define no_argument 0
@@ -33,16 +35,29 @@ Elf64_Ehdr* read_elf_header(char const* path)
 
 void config_load(config_t* self, char const* path)
 {
+    if (self->state == DBG_RUNNING) {
+        printf("Inferior process %d is currently being debugged.\n", self->pid);
+        bool ans = ask_user();
+        if (ans) {
+            i32 ret = debugger_kill(self, SIGKILL);
+            UDB_assert(ret <= 0, "failed to kill child process");
+        } else {
+            printf("Continuing debugging session.\n");
+            return;
+        }
+    }
+
     if (path) {
-        self->state = STATE_INIT;
+        self->state = DBG_LOADED;
         self->path = strdup(path);
         UDB_assert(self->path, "failed to duplicate path");
         Elf64_Ehdr* elf_header = read_elf_header(self->path);
         UDB_assert(elf_header, "failed to read ELF header");
         self->entry_address = elf_header->e_entry;
         free(elf_header);
+        printf("%s%sinfo:%s current executable set to '%s'.\n", BOLD, CYAN, NORMAL, self->path);
     } else {
-        self->state = STATE_UNINIT;
+        self->state = DBG_UNINIT;
         self->path = NULL;
         self->entry_address = 0;
     }
@@ -63,7 +78,7 @@ config_t parse_args(int const argc, char* const* argv)
     };
 
     config_t cfg = {
-        .state = STATE_UNINIT,
+        .state = DBG_UNINIT,
         .path = NULL,
         .pid = 0,
         .entry_address = 0,
@@ -97,24 +112,28 @@ void config_print(config_t const* self)
 {
     UDB_assert(self, "invalid parameter (null pointer)");
     printf("Current configuration:\n");
-    if (self->state == STATE_UNINIT) {
-        printf("  State: %s\n", "uninit");
-        printf("  Path:  %s\n", "");
-        printf("  PID:   %d\n", self->pid);
-        printf("  Entry: %lu\n", self->entry_address);
-        printf("  No breakpoints set\n");
+    if (self->state == DBG_UNINIT) {
+        printf("  State: %s%s%s\n", BOLD, "Uninitialized", NORMAL);
+        printf("  Path:  %s%s%s\n", BOLD, "-", NORMAL);
+        printf("  PID:   %s%s%s\n", BOLD, "None", NORMAL);
+        printf("  Entry: %s0x%lx%s\n", BOLD, self->entry_address, NORMAL);
+        printf("No breakpoints currently set.\n");
     } else {
-        printf("  State: %s\n", self->state == STATE_INIT ? "init" : "running"); 
-        printf("  Path:  %s\n", self->path);
-        printf("  PID:   %d\n", self->pid);
-        printf("  Entry: %lu\n", self->entry_address);
+        printf("  State: %s%s%s\n", BOLD, self->state == DBG_LOADED ? "Loaded" : "Running", NORMAL); 
+        printf("  Path:  %s%s%s\n", BOLD, self->path, NORMAL);
+        if (self->pid == 0) {
+            printf("  PID:   %s%s%s\n", BOLD, "None", NORMAL);
+        } else {
+            printf("  PID:   %s%d%s\n", BOLD, self->pid, NORMAL);
+        }
+        printf("  Entry: %s0x%lx%s\n", BOLD, self->entry_address, NORMAL);
         breakpoint_list(self);
     }
 }
 
 void config_drop(config_t self)
 {
-    self.state = STATE_UNINIT;
+    self.state = DBG_UNINIT;
     if (self.path) {
         free(self.path);
     }
