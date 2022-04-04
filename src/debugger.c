@@ -424,7 +424,7 @@ char* strSHT(Elf64_Word SHT_value) {
     }
 }
 
-void debugger_get_libraries(char* path, vec_t* libraries)
+int debugger_get_libraries(char* path, vec_t* libraries)
 {
     UDB_error(elf_version(EV_CURRENT) != EV_NONE, "Lib pb");
 
@@ -757,6 +757,8 @@ void debugger_print_libraries(config_t* cfg)
     
     debugger_get_libraries(real_path, libraries);
 
+    UDB_user_assert(libraries->len != 0, "It seems that there are no library");
+
     printf("\t%s%s     Address             %s%sType    %sName%s\n\n", BOLD, YELLOW, NORMAL, BOLD, LIGHTCYAN, NORMAL);
     for (size_t i = 0; i < libraries->len; i++) {
         library* lib = (library*)vec_peek(libraries, i);
@@ -778,6 +780,8 @@ void debugger_print_shared_libraries(config_t* cfg)
     vec_t* libraries = vec_with_capacity(1, sizeof(library));
 
     debugger_get_libraries(real_path, libraries);
+
+    UDB_user_assert(libraries->len != 0, "It seems that there are no library");
 
     printf("\t%s%s     Address             %s%sType    %sName%s\n\n", BOLD, YELLOW, NORMAL, BOLD, LIGHTCYAN, NORMAL);
     for (size_t i = 0; i < libraries->len; i++) {
@@ -903,7 +907,6 @@ void debugger_backtrace(int dbg_state)
 *                                                 - [vdso] virtual dynamically linked shared object. When using standard functions, defined in the C library, they are called from the kernel, which can be very slow. To avoid this, we load the library in the environment of each program using its auxiliary vector. (ELF) (AT_SYSINFO_EHDR tag) // can be shown LD_SHOW_AUXV=1 /bin/true
 */
 
-// void debugger_get_mem_maps(p_mem_maps* p_mmaps, int inferior_pid)
 int debugger_get_mem_maps(vec_t* p_mmaps, int inferior_pid)
 {
     char path[BUFFER_LEN];
@@ -966,10 +969,18 @@ void debugger_print_mem_maps(config_t* cfg)
     vec_t* p_mmaps = vec_with_capacity(1, sizeof(p_mem_maps));
 
     debugger_get_mem_maps(p_mmaps, cfg->pid);
+
+    printf("\t%s%s          Addresses begin-end    %s%sPerms   Offset      Device   Inode \t     %sPathname%s\n\n", BOLD, YELLOW, NORMAL, BOLD, CYAN, NORMAL);
+
     for (size_t i = 0; i < p_mmaps->len; i++) {
         p_mem_maps* map = (p_mem_maps*)vec_peek(p_mmaps, i);
-        printf("%s\n", map->line);
-        // printf("%ld-%ld %d%s %ld   %d:%d %d \t\t%s\n", map->start, map->end, map->perm, map->shared == true ? "s" : "p", map->offset, map->device.major, map->device.minor, map->inode, map->path);
+        // printf("%s\n", map->line);
+        printf("%s0x%016lx%s-%s0x%016lx    %s%s%s%s%s    %08ld  % 5d:%d    %08d\t     %s%s%s\n",
+                YELLOW, map->start, NORMAL, YELLOW, map->end,
+                NORMAL, map->perm & 0x4 ? "r" : "-", map->perm & 0x2 ? "w" : "-",
+                map->perm & 0x1 ? "\033[31mx\033[0m" : "-", map->shared == true ? "s" : "p",
+                map->offset, map->device.major, map->device.minor,
+                map->inode, CYAN, map->path, NORMAL);
     }
 }
 
