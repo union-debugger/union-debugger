@@ -109,8 +109,7 @@ ssize_t debugger_wait_signal(config_t* cfg)
         struct user_regs_struct registers;
         if ((ptrace(PTRACE_GETSIGINFO, cfg->pid, NULL, &siginfo) < 0 ||
             ptrace(PTRACE_GETREGS, cfg->pid, NULL, &registers) < 0) &&
-            errno == EINVAL)
-        {
+            errno == EINVAL){
             return -1;
         }
 
@@ -128,6 +127,8 @@ ssize_t debugger_wait_signal(config_t* cfg)
                 }
                 break;
             case SIGSEGV:
+            case SIGABRT:
+            case SIGFPE:
             case SIGSTOP:
                 printf("Inferior process %d stopped.\n", cfg->pid);
                 printf("Name = %s'%s'%s, stopped by signal %sSIG%s (%s)%s at %s0x%llx%s.\n",
@@ -189,33 +190,38 @@ void debugger_print_regs(config_t* cfg)
     struct user_regs_struct regs;
     debugger_get_regs(cfg->pid, &regs);
 
-    printf("orig_rax: %lld\n", regs.orig_rax); // Last system call
-    printf("rax:      %lld\n", regs.rax);
-    printf("rbx:      %lld\n", regs.rbx);
-    printf("rcx:      %lld\n", regs.rcx);
-    printf("rdx:      %lld\n", regs.rdx);
-    printf("rsi:      %lld\n", regs.rsi);
-    printf("rdi:      %lld\n", regs.rdi);
-    printf("r8:       %lld\n", regs.r8);
-    printf("r9:       %lld\n", regs.r9);
-    printf("r10:      %lld\n", regs.r10);
-    printf("r11:      %lld\n", regs.r11);
-    printf("r12:      %lld\n", regs.r12);
-    printf("r13:      %lld\n", regs.r13);
-    printf("r14:      %lld\n", regs.r14);
-    printf("r15:      %lld\n", regs.r15);
-    printf("rbp:      %lld\n", regs.rbp);
-    printf("rsp:      %lld\n", regs.rsp);
-    printf("rip:      %lld\n", regs.rip);
-    printf("eflags:   %lld\n", regs.eflags);
-    printf("cs:       %lld\n", regs.cs);
-    printf("ds:       %lld\n", regs.ds);
-    printf("es:       %lld\n", regs.es);
-    printf("fs:       %lld\n", regs.fs);
-    printf("fs_base:  %lld\n", regs.fs_base);
-    printf("gs:       %lld\n", regs.gs);
-    printf("gs_base:  %lld\n", regs.gs_base);
-    printf("ss:       %lld\n", regs.ss);
+    printf("General Purposes Registers\n");
+
+    printf("%sRegister    %sAddress/Value   %sReference%s\n\n", BOLD, YELLOW, CYAN, NORMAL);
+
+    printf("orig_rax  %s             %lld   %s%s%s\n",
+        YELLOW, regs.orig_rax, CYAN, syscall_tab[regs.orig_rax], NORMAL); // Last system call
+    printf("     rax  %s 0x%012lx %s\n", YELLOW, regs.rax, NORMAL);
+    printf("     rbx  %s 0x%012lx %s\n", YELLOW, regs.rbx, NORMAL);
+    printf("     rcx  %s 0x%012lx %s\n", YELLOW, regs.rcx, NORMAL);
+    printf("     rdx  %s 0x%012lx %s\n", YELLOW, regs.rdx, NORMAL);
+    printf("     rsi  %s 0x%012lx %s\n", YELLOW, regs.rsi, NORMAL);
+    printf("     rdi  %s 0x%012lx %s\n", YELLOW, regs.rdi, NORMAL);
+    printf("      r8  %s 0x%012lx %s\n", YELLOW, regs.r8, NORMAL);
+    printf("      r9  %s 0x%012lx %s\n", YELLOW, regs.r9, NORMAL);
+    printf("     r10  %s 0x%012lx %s\n", YELLOW, regs.r10, NORMAL);
+    printf("     r11  %s 0x%012lx %s\n", YELLOW, regs.r11, NORMAL);
+    printf("     r12  %s 0x%012lx %s\n", YELLOW, regs.r12, NORMAL);
+    printf("     r13  %s 0x%012lx %s\n", YELLOW, regs.r13, NORMAL);
+    printf("     r14  %s 0x%012lx %s\n", YELLOW, regs.r14, NORMAL);
+    printf("     r15  %s 0x%012lx %s\n", YELLOW, regs.r15, NORMAL);
+    printf("     rbp  %s 0x%012lx %s\n", YELLOW, regs.rbp, NORMAL);
+    printf("     rsp  %s 0x%012lx %s\n", YELLOW, regs.rsp, NORMAL);
+    printf("     rip  %s 0x%012lx %s\n", YELLOW, regs.rip, NORMAL);
+    printf("  eflags  %s 0x%012lx %s\n", YELLOW, regs.eflags, NORMAL);
+    printf("      cs  %s 0x%012lx %s\n", YELLOW, regs.cs, NORMAL);
+    printf("      ds  %s 0x%012lx %s\n", YELLOW, regs.ds, NORMAL);
+    printf("      es  %s 0x%012lx %s\n", YELLOW, regs.es, NORMAL);
+    printf("      fs  %s 0x%012lx %s\n", YELLOW, regs.fs, NORMAL);
+    printf(" fs_base  %s 0x%012lx %s\n", YELLOW, regs.fs_base, NORMAL);
+    printf("      gs  %s 0x%012lx %s\n", YELLOW, regs.gs, NORMAL);
+    printf(" gs_base  %s 0x%012lx %s\n", YELLOW, regs.gs_base, NORMAL);
+    printf("      ss  %s 0x%012lx %s\n", YELLOW, regs.ss, NORMAL);
 }
 
 void debugger_get_mem(p_mem* mem)
@@ -751,7 +757,7 @@ void debugger_print_libraries(config_t* cfg)
     
     debugger_get_libraries(real_path, libraries);
 
-    printf("\t%s%sAddress                %s%sType    %sName%s\n\n", BOLD, YELLOW, NORMAL, BOLD, LIGHTCYAN, NORMAL);
+    printf("\t%s%s     Address             %s%sType    %sName%s\n\n", BOLD, YELLOW, NORMAL, BOLD, LIGHTCYAN, NORMAL);
     for (size_t i = 0; i < libraries->len; i++) {
         library* lib = (library*)vec_peek(libraries, i);
         if (lib->type == DT_NEEDED)
@@ -773,7 +779,7 @@ void debugger_print_shared_libraries(config_t* cfg)
 
     debugger_get_libraries(real_path, libraries);
 
-    printf("\t%s%sAddress                %s%sType    %sName%s\n\n", BOLD, YELLOW, NORMAL, BOLD, LIGHTCYAN, NORMAL);
+    printf("\t%s%s     Address             %s%sType    %sName%s\n\n", BOLD, YELLOW, NORMAL, BOLD, LIGHTCYAN, NORMAL);
     for (size_t i = 0; i < libraries->len; i++) {
         library* lib = (library*)vec_peek(libraries, i);
         if (lib->type == DT_NEEDED)
@@ -844,10 +850,10 @@ void debugger_print_debug_strings(config_t* cfg)
 
     get_debug_strings(ddbg.dbg, &ddbg.error, dstr);
 
-    printf("\t%s%sAddress      %s%sSize    %sName%s\n\n", BOLD, YELLOW, NORMAL, BOLD, LIGHTCYAN, NORMAL);
+    printf("\t%s%sAddress         %s%sSize    %sName%s\n\n", BOLD, YELLOW, NORMAL, BOLD, LIGHTCYAN, NORMAL);
     for (size_t i = 0; i < dstr->len; i++) {
         debug_str* dst = (debug_str*)vec_peek(dstr, i);
-        printf("\t%s0x%05llx    %s% 6lld    %s%s%s\n", YELLOW, dst->offset, NORMAL, dst->len, LIGHTCYAN, dst->str, NORMAL);
+        printf("\t%s0x%08llx    %s% 6lld    %s%s%s\n", YELLOW, dst->offset, NORMAL, dst->len, LIGHTCYAN, dst->str, NORMAL);
     }
 
     dwarf_finish(ddbg.dbg);
